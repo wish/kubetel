@@ -1,0 +1,30 @@
+package: github.com/Wish/kubetelOLD2
+import:
+- package: github.com/golang/glog
+- package: k8s.io/api
+  subpackages:
+  - apps/v1
+- package: k8s.io/apimachinery
+  subpackages:
+  - pkg/api/errors
+  - pkg/apis/meta/v1
+  - pkg/labels
+  - pkg/runtime
+  - pkg/runtime/schema
+  - pkg/runtime/serializer
+  - pkg/types
+  - pkg/watch
+- package: k8s.io/client-go
+  subpackages:
+  - discovery
+  - discovery/fake
+  - informers
+  - kubernetes
+  - plugin/pkg/client/auth/oidc
+  - rest
+  - testing
+  - tools/cache
+  - tools/clientcmd
+  - util/flowcontrol
+- package: github.com/json-iterator/go
+  version: v1.1.6
