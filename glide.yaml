@@ -1,6 +1,5 @@
-package: github.com/Wish/kubetelOLD2
+package: github.com/Wish/kubetel
 import:
-- package: github.com/golang/glog
 - package: k8s.io/api
   subpackages:
   - apps/v1
@@ -28,3 +27,13 @@ import:
   - util/flowcontrol
 - package: github.com/json-iterator/go
   version: v1.1.6
+- package: github.com/mitchellh/go-homedir
+  version: v1.1.0
+- package: github.com/spf13/cobra
+  version: 0.0.5
+- package: github.com/spf13/viper
+  version: v1.4.0
+- package: github.com/sirupsen/logrus
+  version: v1.4.2
+- package: github.com/howeyc/gopass
+
