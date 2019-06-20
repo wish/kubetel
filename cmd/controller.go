@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -12,6 +10,9 @@ import (
 	"github.com/Wish/kubetel/controller"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+
+	k8sinformers "k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -41,26 +42,24 @@ var deployController = &cobra.Command{
 
 		stopCh := make(chan struct{})
 
+		k8sClient, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(err.Error())
+
+		}
 		customClient, err := clientset.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
 		}
 
+		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
-		kcdcInformerFactory.Start(stopCh)
-		kcdcInformer := kcdcInformerFactory.Custom().V1().KCDs().Informer()
 
-		s, _ := controller.NewController(kcdcInformer)
-		val := ""
+		k8sInformerFactory.Start(stopCh)
+		kcdcInformerFactory.Start(stopCh)
+
+		_, _ = controller.NewController(customClient, kcdcInformerFactory)
 		for {
-			select {
-			case val = <-s.MessageQ:
-				glog.Warning(val)
-				fmt.Println(val)
-			case val = <-s.MessageQ2:
-				fmt.Println(val)
-				glog.Warning(val)
-			}
 		}
 	},
 }

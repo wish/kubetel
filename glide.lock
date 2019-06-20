@@ -1,5 +1,5 @@
 hash: 62b79c2567bab3bf07fd3a7d464a8de4be866f6d79225f16c8548bea562135a0
-updated: 2019-06-19T13:28:44.707337561-07:00
+updated: 2019-06-20T12:07:23.728190212-07:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -72,12 +72,6 @@ imports:
   version: dba45d427ff48cfb9bcf633db3a8e43b7364e261
 - name: github.com/pkg/errors
   version: ba968bfe8b2f7e042a574c888954fccecfa385b4
-- name: github.com/prometheus/common
-  version: 13ba4ddd0caa9c28ca7b7bffe1dfa9ed8d5ef207
-  subpackages:
-  - log
-- name: github.com/Sirupsen/logrus
-  version: 2a22dbedbad1fd454910cd1f44f210ef90c28464
 - name: github.com/sirupsen/logrus
   version: 839c75faf7f98a33d445d181f3018b5c3409a45e
 - name: github.com/spf13/afero
@@ -119,8 +113,6 @@ imports:
   subpackages:
   - unix
   - windows
-  - windows/registry
-  - windows/svc/eventlog
 - name: golang.org/x/text
   version: b19bf474d317b857955b12035d2c5acb57ce8b01
   subpackages:
@@ -341,4 +333,5 @@ imports:
   - util/homedir
   - util/integer
   - util/retry
+  - util/workqueue
 testImports: []
