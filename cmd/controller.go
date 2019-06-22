@@ -11,7 +11,6 @@ import (
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
 
-	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication
 	"k8s.io/client-go/rest"
@@ -47,18 +46,16 @@ var deployController = &cobra.Command{
 			panic(err.Error())
 
 		}
+
 		customClient, err := clientset.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
 		}
 
-		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
-
-		k8sInformerFactory.Start(stopCh)
 		kcdcInformerFactory.Start(stopCh)
 
-		_, _ = controller.NewController(customClient, kcdcInformerFactory)
+		_, _ = controller.NewController("evchee88/kubetel", k8sClient, customClient, kcdcInformerFactory)
 		for {
 		}
 	},

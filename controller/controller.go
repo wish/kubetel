@@ -13,8 +13,13 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	batchv1 "k8s.io/api/batch/v1"
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	batchv1Client "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -27,21 +32,31 @@ const (
 
 //Controller object
 type Controller struct {
-	customCS     clientset.Interface
+	k8sClient kubernetes.Interface
+	customCS  clientset.Interface
+
 	kcdcInformer cache.SharedIndexInformer
 	kcdcSynced   cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+
+	batchClient batchv1Client.BatchV1Interface
+
+	ktImgRepo string
+
+	queue workqueue.RateLimitingInterface
 }
 
 //NewController Creates a new deyployment controller
-func NewController(customCS clientset.Interface, customIF informer.SharedInformerFactory) (*Controller, error) {
+func NewController(ktImgRepo string, k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory) (*Controller, error) {
 
 	kcdInformer := customIF.Custom().V1().KCDs()
+	batchClient := k8sClient.BatchV1()
 
 	c := &Controller{
 		kcdcInformer: kcdInformer.Informer(),
 		customCS:     customCS,
 		kcdcSynced:   kcdInformer.Informer().HasSynced,
+		batchClient:  batchClient,
+		ktImgRepo:    ktImgRepo,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
 	}
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -94,37 +109,79 @@ func (c *Controller) runWorker() {
 }
 
 func (c *Controller) processNextItem() bool {
-	obj, shutdown := c.queue.Get()
+	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
 	}
-	err := func(obj interface{}) error {
-		defer c.queue.Done(obj)
-		var key string
-		var ok bool
-		if key, ok = obj.(string); !ok {
-			c.queue.Forget(obj)
-			runtime.HandleError(fmt.Errorf("expected string in queue but got %#v", obj))
-			return nil
-		}
+	defer c.queue.Done(key)
 
-		if err := c.processItem(key); err != nil {
-			return errors.Wrapf(err, "error syncing '%s'", key)
-		}
+	err := c.processItem(key.(string))
 
-		c.queue.Forget(obj)
-		return nil
-	}(obj)
+	//TODO: move to config file
+	maxRetries := 2
 
-	if err != nil {
+	if err == nil {
+		c.queue.Forget(key)
+	} else if c.queue.NumRequeues(key) < maxRetries {
+		log.Errorf("Error processing %s (will retry): %v", key, err)
+		c.queue.AddRateLimited(key)
+	} else {
+		log.Errorf("Error processing %s (giving up): %v", key, err)
+		c.queue.Forget(key)
 		runtime.HandleError(err)
-		return true
 	}
 
 	return true
 }
 
 func (c *Controller) processItem(key string) error {
+	obj, exists, err := c.kcdcInformer.GetIndexer().GetByKey(key)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("object no longer exists")
+	}
+	kcd, ok := obj.(*v1.KCD)
+	if !ok {
+		return err
+	}
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	version := kcd.Status.CurrVersion
+	jobName := fmt.Sprintf("kubedeploy-tracker-%s-%s-%s", namespace, name, version)
+
+	jobsClient := c.batchClient.Jobs(namespace)
+
+	_, err = jobsClient.Get(jobName, metav1.GetOptions{})
+	if err == nil {
+		job := &batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      jobName,
+				Namespace: "kuebdeploy",
+			},
+			Spec: batchv1.JobSpec{
+				Template: apiv1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: jobName,
+					},
+					Spec: apiv1.PodSpec{
+						Containers: []apiv1.Container{
+							{
+								Name:  fmt.Sprintf("%s-container", jobName),
+								Image: "yourimage",
+							},
+						},
+						RestartPolicy: apiv1.RestartPolicyOnFailure,
+					},
+				},
+			},
+		}
+		_, err := jobsClient.Create(job)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to create job %s", job.Name)
+		}
+	}
+	log.Infof("Job : %s : already exists, skipping", jobName)
 	return nil
 }
 
