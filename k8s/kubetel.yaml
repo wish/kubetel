@@ -30,10 +30,9 @@ spec:
       # serviceAccount: kcd
       containers:
         - name: "kubetel"
-          image: "evchee88/kubetel:latest"
+          image: "951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:latest"
           imagePullPolicy: Always
           securityContext:
-            runAsNonRoot: true
             allowPrivilegeEscalation: false
             privileged: false
           ports:
@@ -44,8 +43,10 @@ spec:
               protocol: TCP
               containerPort: 5000
           args:
-            - kubectl
-
+            - controller
+            - "--log=trace"
+      imagePullSecrets:
+        - name: regcred
 ---
 kind: Service
 apiVersion: v1
@@ -70,7 +71,7 @@ metadata:
   name: "kubetel"
   namespace: "kube-system"
 spec:
-  imageRepo: evchee88/kubetel
+  imageRepo: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel
   tag: latest
   pollIntervalSeconds: 300
   selector:
@@ -80,11 +81,4 @@ spec:
   config:
     name: kubetel
     key: version
----
-kind: ConfigMap
-apiVersion: v1
-data:
-  version: latest
-metadata:
-  name: kubetel
-  namespace: "kube-system"
+
