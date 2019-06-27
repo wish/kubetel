@@ -10,6 +10,7 @@ import (
 	"github.com/Wish/kubetel/controller"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+	"github.com/Wish/kubetel/signals"
 
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication
@@ -25,7 +26,7 @@ var (
 // deployCmd represents the deploy command
 var deployController = &cobra.Command{
 	Use:   "controller",
-	Short: "Starts a KCD controller",
+	Short: "Starts a kubetel controller",
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		var config *rest.Config
@@ -38,13 +39,12 @@ var deployController = &cobra.Command{
 			log.Errorf("Failed to get k8s config: %v", err)
 			return errors.Wrap(err, "Error building k8s configs either run in cluster or provide config file")
 		}
+		log.Trace("Suscessfully completed k8s authentication")
 
-		stopCh := make(chan struct{})
-
+		stopCh := signals.SetupSignalHandler()
 		k8sClient, err := kubernetes.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
-
 		}
 
 		customClient, err := clientset.NewForConfig(config)
@@ -53,11 +53,18 @@ var deployController = &cobra.Command{
 		}
 
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
-		kcdcInformerFactory.Start(stopCh)
 
-		_, _ = controller.NewController("evchee88/kubetel", k8sClient, customClient, kcdcInformerFactory)
-		for {
-		}
+		log.Debug("Creating New Controller")
+		c, _ := controller.NewController("evchee88/kubetel", k8sClient, customClient, kcdcInformerFactory)
+		go func() {
+			if err = c.Run(2, stopCh); err != nil {
+				log.Infof("Shutting down container version controller: %v", err)
+			}
+		}()
+
+		kcdcInformerFactory.Start(stopCh)
+		<-stopCh
+		return nil
 	},
 }
 

@@ -5,10 +5,9 @@ import (
 	"reflect"
 	"time"
 
+	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
-
-	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -24,6 +23,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+//KCD deployment Status
 const (
 	StatusFailed      = "Failed"
 	StatusSuccess     = "Success"
@@ -59,13 +59,16 @@ func NewController(ktImgRepo string, k8sClient kubernetes.Interface, customCS cl
 		ktImgRepo:    ktImgRepo,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
 	}
+
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.trackAddKcd,
 		UpdateFunc: c.trackKcd,
 	})
+
 	return c, nil
 }
 
+//Adds a new job request into the work queue
 func (c *Controller) enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
@@ -101,13 +104,13 @@ func (c *Controller) Run(threadCount int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-//Processes items from the queue
 func (c *Controller) runWorker() {
 	log.Info("Running worker")
 	for c.processNextItem() {
 	}
 }
 
+//dequeues workqueue with retry if failed
 func (c *Controller) processNextItem() bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
@@ -140,24 +143,26 @@ func (c *Controller) processItem(key string) error {
 		return err
 	}
 	if !exists {
-		return errors.New("object no longer exists")
+		return errors.New("Object does not exists")
 	}
 	kcd, ok := obj.(*v1.KCD)
 	if !ok {
 		return err
 	}
+
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	version := kcd.Status.CurrVersion
 	jobName := fmt.Sprintf("kubedeploy-tracker-%s-%s-%s", namespace, name, version)
 
 	jobsClient := c.batchClient.Jobs(namespace)
 
+	//If deployment is already being tracked do not create a new tacking job
 	_, err = jobsClient.Get(jobName, metav1.GetOptions{})
 	if err == nil {
 		job := &batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      jobName,
-				Namespace: "kuebdeploy",
+				Namespace: "kubedeploy",
 			},
 			Spec: batchv1.JobSpec{
 				Template: apiv1.PodTemplateSpec{
@@ -198,9 +203,11 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 			return
 		}
 		if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
+			log.Trace("no change")
 			return
 		}
 		if newKCD.Status.CurrStatus == StatusProgressing {
+			log.Trace(newKCD)
 			c.enqueue(newObj)
 		}
 	}
@@ -212,6 +219,7 @@ func (c *Controller) trackAddKcd(newObj interface{}) {
 		return
 	}
 	if newKCD.Status.CurrStatus == StatusProgressing {
+		log.Trace(newKCD)
 		c.enqueue(newObj)
 	}
 }

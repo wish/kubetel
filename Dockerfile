@@ -7,9 +7,13 @@ RUN rm -r /go/src/github.com/Wish/kubetel
 
 VOLUME /go/src
 
+# TODO: this is dodgy it expects k8s files to always be available from runtime directory
+
+# need to packae the yaml n version file using tool chains properly
+RUN mkdir -p /kubetel
+ADD ./k8s /kubetel/k8s/
+ADD kubetel /kubetel/
 
 WORKDIR /kubetel
-
-USER 1001
 
 ENTRYPOINT ["kubetel"]

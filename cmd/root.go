@@ -29,15 +29,14 @@ func configureLogging() {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "kube-informer",
+	Use:   "kubetel",
 	Short: "Deployment tracker for kubernetes",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		configureLogging()
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -52,11 +51,8 @@ func setDefaults() {
 func init() {
 	setDefaults()
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "", "log level (warn, info, debug)")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
 
 	if err := viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log")); err != nil {

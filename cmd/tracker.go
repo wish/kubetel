@@ -22,7 +22,7 @@ import (
 // deployCmd represents the deploy command
 var createTracker = &cobra.Command{
 	Use:   "tracker",
-	Short: "Starts a KCD deplyment tracker",
+	Short: "Starts a kubetel deplyment tracker",
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
