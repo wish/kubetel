@@ -10,6 +10,7 @@ import (
 	"github.com/Wish/kubetel/controller"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+	"github.com/Wish/kubetel/healthmonitor"
 	"github.com/Wish/kubetel/signals"
 
 	"k8s.io/client-go/kubernetes"
@@ -63,7 +64,11 @@ var deployController = &cobra.Command{
 		}()
 
 		kcdcInformerFactory.Start(stopCh)
-		<-stopCh
+		log.Debug("Staring Server")
+		err = healthmonitor.NewServer(8081, stopCh)
+		if err != nil {
+			return errors.Wrap(err, "failed to start new server")
+		}
 		return nil
 	},
 }

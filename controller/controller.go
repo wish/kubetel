@@ -84,7 +84,7 @@ func (c *Controller) Run(threadCount int, stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	log.Info("StartingController")
+	log.Info("Starting Controller")
 
 	go c.kcdcInformer.Run(stopCh)
 

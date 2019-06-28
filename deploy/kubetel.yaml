@@ -1,0 +1,85 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: kubetel
+  namespace: "kube-system"
+  labels:
+    kcdapp: kubetel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubetel
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+  minReadySeconds: 30
+  template:
+    metadata:
+      labels:
+        app: kubetel
+        component: kubetel
+    spec:
+      nodeSelector:
+        "node-role.kubernetes.io/master": ""
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          effect: NoSchedule
+      # serviceAccountName: kcd
+      # serviceAccount: kcd
+      containers:
+        - name: "kubetel"
+          image: "951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:latest"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          ports:
+            - name: http
+              protocol: TCP
+              containerPort: 8081
+          args:
+            - controller
+            - "--log=trace"
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: http
+      imagePullSecrets:
+        - name: regcred
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: kubetel
+  namespace: "kube-system"
+  labels:
+    app: kubetel
+spec:
+  type: NodePort
+  ports:
+    - port: 8081
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: kubetel
+---
+kind: KCD
+apiVersion: custom.k8s.io/v1
+metadata:
+  name: "kubetel"
+  namespace: "kube-system"
+spec:
+  imageRepo: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel
+  tag: latest
+  pollIntervalSeconds: 300
+  selector:
+    kcdapp: kubetel
+  container:
+    name: "kubetel"
+  config:
+    name: kubetel
+    key: version
+

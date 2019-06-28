@@ -1,0 +1,17 @@
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: kubetel
+  namespace: "kube-system"
+  labels:
+    app: kubetel
+spec:
+  type: NodePort
+  ports:
+    - port: 8081
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: kubetel
