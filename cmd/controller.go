@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/Wish/kubetel/controller"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
@@ -56,7 +57,7 @@ var deployController = &cobra.Command{
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
 		log.Debug("Creating New Controller")
-		c, _ := controller.NewController("evchee88/kubetel", k8sClient, customClient, kcdcInformerFactory)
+		c, _ := controller.NewController(viper.GetString("image"), k8sClient, customClient, kcdcInformerFactory)
 		go func() {
 			if err = c.Run(2, stopCh); err != nil {
 				log.Infof("Shutting down container version controller: %v", err)
@@ -65,7 +66,7 @@ var deployController = &cobra.Command{
 
 		kcdcInformerFactory.Start(stopCh)
 		log.Debug("Staring Server")
-		err = healthmonitor.NewServer(8081, stopCh)
+		err = healthmonitor.NewServer(viper.GetInt("server.port"), stopCh)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}

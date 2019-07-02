@@ -11,7 +11,7 @@ VOLUME /go/src
 
 # need to packae the yaml n version file using tool chains properly
 RUN mkdir -p /kubetel
-ADD ./deploy /kubetel/k8s/
+ADD ./deploy /kubetel/deploy/
 ADD kubetel /kubetel/
 
 WORKDIR /kubetel

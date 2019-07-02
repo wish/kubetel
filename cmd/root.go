@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -14,6 +15,7 @@ var (
 	k8sConfig   string
 	logLevel    string
 	environment string
+	cfgFile     string
 )
 
 func configureLogging() {
@@ -51,6 +53,9 @@ func setDefaults() {
 func init() {
 	setDefaults()
 
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./kubetel.json)")
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
@@ -61,6 +66,32 @@ func init() {
 	}
 	if err := viper.BindPFlag("crash_logging.enabled", rootCmd.PersistentFlags().Lookup("crash-logging")); err != nil {
 		fmt.Printf("error binding viper to crash_logging ")
+		os.Exit(1)
+	}
+}
+
+func initConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+		viper.Set("cfgFile", cfgFile)
+	} else {
+		// Find home directory.
+		home, err := homedir.Dir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		viper.AddConfigPath(".")
+		viper.AddConfigPath(home)
+		viper.SetConfigName("kubetel")
+	}
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("KUBETEL")
+
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }

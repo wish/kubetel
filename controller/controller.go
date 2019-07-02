@@ -8,6 +8,7 @@ import (
 	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+	"github.com/spf13/viper"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -156,7 +157,10 @@ func (c *Controller) processItem(key string) error {
 
 	jobsClient := c.batchClient.Jobs(namespace)
 
-	//If deployment is already being tracked do not create a new tacking job
+	//Overwrite config settings set from flags
+	args := []string{"tracker", fmt.Sprintf("--log=%s", viper.GetString("log.level")), fmt.Sprintf("--kcdapp=%s", kcd.Spec.Selector["kcdapp"]), fmt.Sprintf("--version=%s", version)}
+
+	//If deployment is already being tracked do not create a new tracking job
 	_, err = jobsClient.Get(jobName, metav1.GetOptions{})
 	if err == nil {
 		job := &batchv1.Job{
@@ -173,7 +177,8 @@ func (c *Controller) processItem(key string) error {
 						Containers: []apiv1.Container{
 							{
 								Name:  fmt.Sprintf("%s-container", jobName),
-								Image: "yourimage",
+								Image: viper.GetString("image"),
+								Args:  args,
 							},
 						},
 						RestartPolicy: apiv1.RestartPolicyOnFailure,
