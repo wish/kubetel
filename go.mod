@@ -1,0 +1,53 @@
+module github.com/wish/kubetel
+
+go 1.12
+
+require (
+	github.com/davecgh/go-spew v1.1.1
+	github.com/evanphx/json-patch v4.2.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.7
+	github.com/gogo/protobuf v1.2.1
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/golang/protobuf v1.3.1
+	github.com/google/go-cmp v0.3.0
+	github.com/google/gofuzz v1.0.0
+	github.com/googleapis/gnostic v0.0.0-20170729233727-0c5108395e2d
+	github.com/hashicorp/golang-lru v0.5.0
+	github.com/hashicorp/hcl v1.0.0
+	github.com/howeyc/gopass v0.0.0-20170109162249-bf9dde6d0d2c
+	github.com/imdario/mergo v0.3.5
+	github.com/inconshreveable/mousetrap v1.0.0
+	github.com/json-iterator/go v1.1.6
+	github.com/konsorten/go-windows-terminal-sequences v1.0.2
+	github.com/magiconair/properties v1.8.1
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/mapstructure v1.1.2
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	github.com/modern-go/reflect2 v1.0.1
+	github.com/pelletier/go-toml v1.2.0
+	github.com/pkg/errors v0.8.0
+	github.com/sirupsen/logrus v1.4.2
+	github.com/spf13/afero v1.2.2
+	github.com/spf13/cast v1.3.0
+	github.com/spf13/cobra v0.0.5
+	github.com/spf13/jwalterweatherman v1.1.0
+	github.com/spf13/pflag v1.0.3
+	github.com/spf13/viper v1.4.0
+	goji.io v2.0.2+incompatible
+	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	golang.org/x/net v0.0.0-20190522155817-f3200d17e092
+	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
+	golang.org/x/sys v0.0.0-20190422165155-953cdadca894
+	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+	google.golang.org/appengine v1.5.0
+	gopkg.in/inf.v0 v0.9.0
+	gopkg.in/yaml.v2 v2.2.2
+	k8s.io/api v0.0.0-20190626000116-b178a738ed00
+	k8s.io/apimachinery v0.0.0-20190624085041-961b39a1baa0
+	k8s.io/client-go v0.0.0-20190626045420-1ec4b74c7bda
+	k8s.io/klog v0.3.1
+	k8s.io/kube-openapi v0.0.0-20190228160746-b3a7cee44a30
+	k8s.io/utils v0.0.0-20190221042446-c2654d5206da
+	sigs.k8s.io/yaml v1.1.0
+)
