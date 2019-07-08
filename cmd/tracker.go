@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
-	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
-	"github.com/Wish/kubetel/healthmonitor"
-	"github.com/Wish/kubetel/signals"
-	"github.com/Wish/kubetel/tracker"
+	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
+	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
+	"github.com/wish/kubetel/healthmonitor"
+	"github.com/wish/kubetel/signals"
+	"github.com/wish/kubetel/tracker"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication

@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"time"
 
-	customv1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
-	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
-	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
-	kcdutil "github.com/Wish/kubetel/gok8s/kcdutil"
+	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
+	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
+	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
+	kcdutil "github.com/wish/kubetel/gok8s/kcdutil"
 	"github.com/spf13/viper"
 
 	"github.com/pkg/errors"

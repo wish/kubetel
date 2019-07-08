@@ -19,8 +19,8 @@ limitations under the License.
 package custom
 
 import (
-	internalinterfaces "github.com/Wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
-	v1 "github.com/Wish/kubetel/gok8s/client/informers/externalversions/custom/v1"
+	internalinterfaces "github.com/wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
+	v1 "github.com/wish/kubetel/gok8s/client/informers/externalversions/custom/v1"
 )
 
 // Interface provides access to each of this group's versions.

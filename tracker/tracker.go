@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"time"
 
-	customv1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
-	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
-	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
-	kcdutil "github.com/Wish/kubetel/gok8s/kcdutil"
+	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
+	v1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
+	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
+	kcdutil "github.com/wish/kubetel/gok8s/kcdutil"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -1,9 +1,9 @@
 FROM golang:alpine
 
-ADD . /go/src/github.com/Wish/kubetel
-RUN go install github.com/Wish/kubetel
+ADD . /go/src/github.com/wish/kubetel
+RUN go install github.com/wish/kubetel
 
-RUN rm -r /go/src/github.com/Wish/kubetel
+RUN rm -r /go/src/github.com/wish/kubetel
 
 VOLUME /go/src
 

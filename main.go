@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Wish/kubetel/cmd"
+	"github.com/wish/kubetel/cmd"
 )
 
 func main() {
