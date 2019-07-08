@@ -9,9 +9,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
-	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
-	"github.com/Wish/kubetel/tracker"
+	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
+	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
+	"github.com/wish/kubetel/tracker"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication

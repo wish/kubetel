@@ -19,7 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	customv1 "github.com/Wish/kubetel/gok8s/client/clientset/versioned/typed/custom/v1"
+	customv1 "github.com/wish/kubetel/gok8s/client/clientset/versioned/typed/custom/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

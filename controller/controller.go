@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"time"
 
-	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
-	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
-	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+	v1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
+	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
+	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

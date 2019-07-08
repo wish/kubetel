@@ -3,7 +3,7 @@ package tracker
 import (
 	"fmt"
 
-	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
+	v1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
 	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 

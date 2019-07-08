@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
-	custom "github.com/Wish/kubetel/gok8s/client/informers/externalversions/custom"
-	internalinterfaces "github.com/Wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/wish/kubetel/gok8s/client/clientset/versioned"
+	custom "github.com/wish/kubetel/gok8s/client/informers/externalversions/custom"
+	internalinterfaces "github.com/wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

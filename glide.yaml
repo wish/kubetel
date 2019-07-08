@@ -1,4 +1,4 @@
-package: github.com/Wish/kubetel
+package: github.com/wish/kubetel
 import:
 - package: k8s.io/api
   subpackages:
