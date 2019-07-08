@@ -57,7 +57,7 @@ var deployController = &cobra.Command{
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 
 		log.Debug("Creating New Controller")
-		c, _ := controller.NewController(viper.GetString("image"), k8sClient, customClient, kcdcInformerFactory)
+		c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory)
 		go func() {
 			if err = c.Run(2, stopCh); err != nil {
 				log.Infof("Shutting down container version controller: %v", err)

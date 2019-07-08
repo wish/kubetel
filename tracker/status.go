@@ -12,5 +12,13 @@ type StatusData struct {
 	Timestamp time.Time
 	Deploy    appsv1.Deployment
 	Version   string
+}
+
+//FinishedStatusData format for complete job
+type FinishedStatusData struct {
+	Cluster   string
+	Timestamp time.Time
+	Deploy    appsv1.Deployment
+	Version   string
 	Success   bool
 }

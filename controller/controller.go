@@ -5,16 +5,17 @@ import (
 	"reflect"
 	"time"
 
-	v1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
+	customv1 "github.com/Wish/kubetel/gok8s/apis/custom/v1"
 	clientset "github.com/Wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/Wish/kubetel/gok8s/client/informers/externalversions"
+	kcdutil "github.com/Wish/kubetel/gok8s/kcdutil"
 	"github.com/spf13/viper"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	batchv1 "k8s.io/api/batch/v1"
-	apiv1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -22,13 +23,6 @@ import (
 	batchv1Client "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-)
-
-//KCD deployment Status
-const (
-	StatusFailed      = "Failed"
-	StatusSuccess     = "Success"
-	StatusProgressing = "Progressing"
 )
 
 //Controller object
@@ -41,13 +35,11 @@ type Controller struct {
 
 	batchClient batchv1Client.BatchV1Interface
 
-	ktImgRepo string
-
 	queue workqueue.RateLimitingInterface
 }
 
 //NewController Creates a new deyployment controller
-func NewController(ktImgRepo string, k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory) (*Controller, error) {
+func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory) (*Controller, error) {
 
 	kcdInformer := customIF.Custom().V1().KCDs()
 	batchClient := k8sClient.BatchV1()
@@ -57,7 +49,6 @@ func NewController(ktImgRepo string, k8sClient kubernetes.Interface, customCS cl
 		customCS:     customCS,
 		kcdcSynced:   kcdInformer.Informer().HasSynced,
 		batchClient:  batchClient,
-		ktImgRepo:    ktImgRepo,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
 	}
 
@@ -146,7 +137,7 @@ func (c *Controller) processItem(key string) error {
 	if !exists {
 		return errors.New("Object does not exists")
 	}
-	kcd, ok := obj.(*v1.KCD)
+	kcd, ok := obj.(*customv1.KCD)
 	if !ok {
 		return err
 	}
@@ -169,19 +160,19 @@ func (c *Controller) processItem(key string) error {
 				Namespace: "kubedeploy",
 			},
 			Spec: batchv1.JobSpec{
-				Template: apiv1.PodTemplateSpec{
+				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: jobName,
 					},
-					Spec: apiv1.PodSpec{
-						Containers: []apiv1.Container{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
 							{
 								Name:  fmt.Sprintf("%s-container", jobName),
 								Image: viper.GetString("image"),
 								Args:  args,
 							},
 						},
-						RestartPolicy: apiv1.RestartPolicyOnFailure,
+						RestartPolicy: corev1.RestartPolicyOnFailure,
 					},
 				},
 			},
@@ -197,12 +188,12 @@ func (c *Controller) processItem(key string) error {
 
 func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 	if !reflect.DeepEqual(oldObj, newObj) {
-		newKCD, ok := newObj.(*v1.KCD)
+		newKCD, ok := newObj.(*customv1.KCD)
 		if !ok {
 			log.Errorf("Not a KCD object")
 			return
 		}
-		oldKCD, ok := oldObj.(*v1.KCD)
+		oldKCD, ok := oldObj.(*customv1.KCD)
 		if !ok {
 			log.Errorf("Not a KCD object")
 			return
@@ -211,19 +202,19 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 			log.Trace("no change")
 			return
 		}
-		if newKCD.Status.CurrStatus == StatusProgressing {
+		if newKCD.Status.CurrStatus == kcdutil.StatusProgressing {
 			log.Trace(newKCD)
 			c.enqueue(newObj)
 		}
 	}
 }
 func (c *Controller) trackAddKcd(newObj interface{}) {
-	newKCD, ok := newObj.(*v1.KCD)
+	newKCD, ok := newObj.(*customv1.KCD)
 	if !ok {
 		log.Errorf("Not a KCD object")
 		return
 	}
-	if newKCD.Status.CurrStatus == StatusProgressing {
+	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing {
 		log.Trace(newKCD)
 		c.enqueue(newObj)
 	}

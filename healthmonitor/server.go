@@ -47,7 +47,6 @@ func NewServer(port int, stopCh chan struct{}) error {
 	return nil
 }
 func StaticContentHandler(content string) http.HandlerFunc {
-	log.Infof("TRYING TO SERVE")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte(content)); err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

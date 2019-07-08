@@ -48,6 +48,12 @@ func Execute() {
 
 func setDefaults() {
 	viper.SetDefault("log.level", "info")
+	viper.SetDefault("controller.maxretries", 2)
+	viper.SetDefault("controller.workercount", 2)
+	viper.SetDefault("tracker.maxretries", 2)
+	viper.SetDefault("tracker.workercount", 2)
+	viper.SetDefault("image", "951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel")
+	viper.SetDefault("namespace", "kubetel")
 }
 
 func init() {

@@ -54,19 +54,22 @@ var deployTracker = &cobra.Command{
 		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 		kcdcInformerFactory := informer.NewFilteredSharedInformerFactory(customClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 
+		t, _ := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory)
+		go func() {
+			if err = t.Run(2, stopCh); err != nil {
+				log.Infof("Shutting down tracker: %v", err)
+			}
+		}()
+
 		k8sInformerFactory.Start(stopCh)
 		kcdcInformerFactory.Start(stopCh)
-
-		_, _ = tracker.NewTracker(kcdcInformerFactory, k8sInformerFactory)
-
-		//deployInformer := k8sInformerFactory.Apps().V1().Deployments().Informer()
-		//kcdcInformer := kcdcInformerFactory.Custom().V1().KCDs().Informer()
 
 		log.Debug("Staring Server")
 		err = healthmonitor.NewServer(viper.GetInt("server.port"), stopCh)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}
+
 		return nil
 	},
 }
