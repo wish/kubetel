@@ -1,19 +1,19 @@
-FROM golang:alpine
+FROM golang:alpine AS builder
 
-ADD . /go/src/github.com/wish/kubetel
-RUN go install github.com/wish/kubetel
+RUN apk update && apk add --no-cache git
+COPY . /go/src/github.com/wish/kubetel
+WORKDIR /go/src/github.com/wish/kubetel
+RUN export GO111MODULE=on && GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /go/bin/kubetel
 
-RUN rm -r /go/src/github.com/wish/kubetel
+
+FROM alpine
 
 VOLUME /go/src
 
-# TODO: this is dodgy it expects k8s files to always be available from runtime directory
-
-# need to packae the yaml n version file using tool chains properly
 RUN mkdir -p /kubetel
-ADD ./deploy /kubetel/deploy/
-ADD kubetel /kubetel/
+COPY --from=builder /go/src/github.com/wish/kubetel/deploy/ /kubetel/deploy/
+COPY --from=builder /go/bin/kubetel /kubetel/
 
 WORKDIR /kubetel
 
-ENTRYPOINT ["kubetel"]
+ENTRYPOINT ["/kubetel/kubetel"]

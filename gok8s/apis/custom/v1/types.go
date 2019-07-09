@@ -4,6 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// KCDAPP is KCDAPP
 const KCDAPP = "kcdapp"
 
 // +genclient

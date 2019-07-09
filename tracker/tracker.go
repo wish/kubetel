@@ -224,9 +224,8 @@ func (t *Tracker) processItem(key string) error {
 		kcd, ok := obj.(*v1.KCD)
 		if !ok {
 			return err
-		} else {
-			t.sendDeployedFinishedEvent(kcd)
 		}
+		t.sendDeployedFinishedEvent(kcd)
 
 	} else {
 		statusData := StatusData{

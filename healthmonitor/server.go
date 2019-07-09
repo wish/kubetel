@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 	goji "goji.io"
 	"goji.io/pat"
@@ -15,6 +14,7 @@ import (
 type server struct {
 }
 
+//NewServer creates a new http server
 func NewServer(port int, stopCh chan struct{}) error {
 	mux := goji.NewMux()
 	mux.Handle(pat.Get("/status"), StaticContentHandler("ok"))
@@ -42,10 +42,12 @@ func NewServer(port int, stopCh chan struct{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
-	glog.V(1).Info("Server gracefully stopped")
+	log.Info("Server gracefully stopped")
 
 	return nil
 }
+
+//StaticContentHandler handles static http content
 func StaticContentHandler(content string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte(content)); err != nil {

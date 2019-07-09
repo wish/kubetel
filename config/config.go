@@ -1,5 +1,6 @@
 package config
 
+//KubeDeployConfig for config file structure
 type KubeDeployConfig struct {
 	Server     ServerConfig     `mapstructure:"server"`
 	Controller ControllerConfig `mapstructure:"controller"`
@@ -10,16 +11,23 @@ type KubeDeployConfig struct {
 	Cluster    string           `mapstructure:"cluster"`
 }
 
+//LogConfig for config file structure
 type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
+
+//ServerConfig for config file structure
 type ServerConfig struct {
 	Port int `mapstructure:"port"`
 }
+
+//ControllerConfig for config file structure
 type ControllerConfig struct {
 	MaxRetries  int `mapstructure:"maxretries"`
 	WorkerCount int `mapstructure:"workercount"`
 }
+
+//TrackerConfig for config file structure
 type TrackerConfig struct {
 	MaxRetries              int    `mapstructure:"maxretries"`
 	WorkerCount             int    `mapstructure:"workercount"`
