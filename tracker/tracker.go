@@ -58,6 +58,15 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	k8sInformer := k8sIF.Apps().V1().Deployments()
 	deploymentClient := k8sClient.AppsV1().Deployments(viper.GetString("tracker.namespace"))
 
+	var client *http.Client
+	var rander *rand.Rand
+	if viper.GetString("tracker.endpoint") != "" {
+		client = &http.Client{
+			Timeout: time.Duration(5 * time.Second),
+		}
+		rander = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+
 	t := &Tracker{
 		k8scInformer: k8sInformer.Informer(),
 		kcdcInformer: kcdInformer.Informer(),
@@ -71,6 +80,8 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 
 		clusterName: viper.GetString("cluster"),
 		version:     viper.GetString("tracker.version"),
+		httpClient:  client,
+		rand:        rander,
 	}
 
 	t.k8scInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{

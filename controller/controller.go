@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/spf13/viper"
 	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
 	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
 	kcdutil "github.com/wish/kubetel/gok8s/kcdutil"
-	"github.com/spf13/viper"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -149,7 +149,7 @@ func (c *Controller) processItem(key string) error {
 	jobsClient := c.batchClient.Jobs(namespace)
 
 	//Overwrite config settings set from flags
-	args := []string{"tracker", fmt.Sprintf("--log=%s", viper.GetString("log.level")), fmt.Sprintf("--kcdapp=%s", kcd.Spec.Selector["kcdapp"]), fmt.Sprintf("--version=%s", version)}
+	args := []string{"tracker", fmt.Sprintf("--log=%s", viper.GetString("log.level")), fmt.Sprintf("--kcdapp=%s", kcd.Spec.Selector["kcdapp"]), fmt.Sprintf("--version=%s", version), fmt.Sprintf("--tracker-namespace=%s", namespace)}
 
 	//If deployment is already being tracked do not create a new tracking job
 	_, err = jobsClient.Get(jobName, metav1.GetOptions{})

@@ -1,0 +1,14 @@
+server:
+  port: 80
+controller:
+  maxRetries: 2
+  workercount: 2
+tracker:
+  maxRetries: 2
+  workercount: 2
+  endpoint: 127.0.0.1
+log:
+  level: trace
+image:
+namespace:
+cluster:

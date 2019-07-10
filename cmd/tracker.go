@@ -76,11 +76,13 @@ var deployTracker = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(deployTracker)
-	deployTracker.Flags().String("namespace", "", "namespace app to track is in")
+	deployTracker.Flags().String("tracker-namespace", "", "namespace app to track is in")
 	deployTracker.Flags().String("kcdapp", "", "kcdapp to track")
 	deployTracker.Flags().String("version", "", "verson of tracked app")
+	deployTracker.Flags().String("endpoint", "", "endpoint to push results to")
 
-	viper.BindPFlag("tracker.namespace", deployController.Flags().Lookup("namespace"))
+	viper.BindPFlag("tracker.namespace", deployController.Flags().Lookup("tracker-namespace"))
 	viper.BindPFlag("tracker.kcdapp", deployController.Flags().Lookup("kcdapp"))
 	viper.BindPFlag("tracker.version", deployController.Flags().Lookup("version"))
+	viper.BindPFlag("tracker.endpoint", deployController.Flags().Lookup("endpoint"))
 }
