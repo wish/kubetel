@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -40,6 +42,7 @@ var deployTracker = &cobra.Command{
 		log.Trace("Suscessfully completed k8s authentication")
 
 		stopCh := signals.SetupSignalHandler()
+		var waitgroup sync.WaitGroup
 
 		k8sClient, err := kubernetes.NewForConfig(config)
 		if err != nil {
@@ -51,14 +54,18 @@ var deployTracker = &cobra.Command{
 			panic(err.Error())
 		}
 
-		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
+		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil) //May need additional filtering
 		kcdcInformerFactory := informer.NewFilteredSharedInformerFactory(customClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 
 		t, _ := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory)
 		go func() {
-			if err = t.Run(2, stopCh); err != nil {
+			if err = t.Run(viper.GetInt("tracker.workercount"), stopCh, &waitgroup); err != nil {
 				log.Infof("Shutting down tracker: %v", err)
 			}
+		}()
+		go func() {
+			waitgroup.Wait()
+			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		}()
 
 		k8sInformerFactory.Start(stopCh)
@@ -69,7 +76,7 @@ var deployTracker = &cobra.Command{
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}
-
+		waitgroup.Wait()
 		return nil
 	},
 }
