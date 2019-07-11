@@ -148,8 +148,18 @@ func (c *Controller) processItem(key string) error {
 
 	jobsClient := c.batchClient.Jobs(namespace)
 
-	//Overwrite config settings set from flags
-	args := []string{"tracker", fmt.Sprintf("--log=%s", viper.GetString("log.level")), fmt.Sprintf("--kcdapp=%s", kcd.Spec.Selector["kcdapp"]), fmt.Sprintf("--version=%s", version), fmt.Sprintf("--tracker-namespace=%s", namespace)}
+	args := []string{"tracker",
+		fmt.Sprintf("--cluster=%s", viper.GetString("cluster")),
+		fmt.Sprintf("--log=%s", viper.GetString("log.level")),
+		fmt.Sprintf("--tracker-kcdapp=%s", kcd.Spec.Selector["kcdapp"]),
+		fmt.Sprintf("--tracker-version=%s", version),
+		fmt.Sprintf("--tracker-namespace=%s", namespace),
+		fmt.Sprintf("--tracker-endpointtype=%s", viper.GetString("tracker.endpointtype")),
+		fmt.Sprintf("--tracker-endpoint=%s", viper.GetString("tracker.endpointtype")),
+		fmt.Sprintf("--tracker-maxretries=%d", viper.GetInt("tracker.maxretries")),
+		fmt.Sprintf("--tracker-workercount=%d", viper.GetInt("tracker.workercount")),
+		fmt.Sprintf("--port=%d", viper.GetInt("server.port")),
+	}
 
 	//If deployment is already being tracked do not create a new tracking job
 	_, err = jobsClient.Get(jobName, metav1.GetOptions{})

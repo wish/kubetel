@@ -16,6 +16,7 @@ var (
 	logLevel    string
 	environment string
 	cfgFile     string
+	port        int
 )
 
 func configureLogging() {
@@ -65,9 +66,22 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
+	rootCmd.PersistentFlags().Bool("no-config", false, "Disable config file")
+	rootCmd.PersistentFlags().String("cluster", "", "log level (warn, info, debug, trace)")
+	rootCmd.PersistentFlags().IntVar(&port, "server-port", 0, "port to bind status endpoint")
 
+	if port != 0 {
+		if err := viper.BindPFlag("server.port", rootCmd.PersistentFlags().Lookup("server-port")); err != nil {
+			fmt.Printf("Error binding viper to cluster %s", err)
+			os.Exit(1)
+		}
+	}
+	if err := viper.BindPFlag("cluster", rootCmd.PersistentFlags().Lookup("cluster")); err != nil {
+		fmt.Printf("Error binding viper to cluster %s", err)
+		os.Exit(1)
+	}
 	if err := viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log")); err != nil {
-		fmt.Printf("Error binding to log.level %s", err)
+		fmt.Printf("Error binding viper to log.level %s", err)
 		os.Exit(1)
 	}
 	if err := viper.BindPFlag("crash_logging.enabled", rootCmd.PersistentFlags().Lookup("crash-logging")); err != nil {

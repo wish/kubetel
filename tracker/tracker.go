@@ -28,6 +28,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sqs"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -47,6 +50,8 @@ type Tracker struct {
 	httpClient *http.Client
 	rand       *rand.Rand
 
+	sqsClient *sqs.SQS
+
 	clusterName             string
 	version                 string
 	deployStatusEndpointAPI string
@@ -58,13 +63,20 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	k8sInformer := k8sIF.Apps().V1().Deployments()
 	deploymentClient := k8sClient.AppsV1().Deployments(viper.GetString("tracker.namespace"))
 
-	var client *http.Client
+	var httpClient *http.Client
 	var rander *rand.Rand
-	if viper.GetString("tracker.endpoint") != "" {
-		client = &http.Client{
-			Timeout: time.Duration(5 * time.Second),
+	var sqsClient *sqs.SQS
+	switch endtype := viper.GetString("tracker.endpointtype"); endtype {
+	case "http":
+		if viper.GetString("tracker.endpoint") != "" {
+			httpClient = &http.Client{
+				Timeout: time.Duration(5 * time.Second),
+			}
+			rander = rand.New(rand.NewSource(time.Now().UnixNano()))
 		}
-		rander = rand.New(rand.NewSource(time.Now().UnixNano()))
+	case "sqs":
+		sess := session.Must(session.NewSession())
+		sqsClient = sqs.New(sess)
 	}
 
 	t := &Tracker{
@@ -78,10 +90,13 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployTracker"),
 
-		clusterName: viper.GetString("cluster"),
-		version:     viper.GetString("tracker.version"),
-		httpClient:  client,
-		rand:        rander,
+		clusterName:             viper.GetString("cluster"),
+		version:                 viper.GetString("tracker.version"),
+		deployStatusEndpointAPI: viper.GetString("tracker.endpoint"),
+
+		httpClient: httpClient,
+		rand:       rander,
+		sqsClient:  sqsClient,
 	}
 
 	t.k8scInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -109,8 +124,10 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 		if !ok {
 			return
 		}
-		log.Infof("Deployment updated: %s", name)
-		t.enqueue(newDeploy)
+		if name == viper.GetString("tracker.kcdapp") {
+			log.Infof("Deployment updated: %s", name)
+			t.enqueue(newDeploy)
+		}
 	}
 }
 
@@ -288,6 +305,16 @@ func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
 }
 
 func (t *Tracker) sendDeploymentEvent(endpoint string, data interface{}) {
+	switch endtype := viper.GetString("tracker.endpointtype"); endtype {
+	case "http":
+		t.sendDeploymentEventHTTP(endpoint, data)
+	case "sqs":
+		t.sendDeploymentEventSQS(endpoint, data)
+	}
+
+}
+
+func (t *Tracker) sendDeploymentEventHTTP(endpoint string, data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
@@ -313,6 +340,19 @@ func (t *Tracker) sendDeploymentEvent(endpoint string, data interface{}) {
 		break
 	}
 }
+
+func (t *Tracker) sendDeploymentEventSQS(endpoint string, data interface{}) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Errorf("Failed marshalling the deployment object: %v", err)
+		return
+	}
+	t.sqsClient.SendMessage(&sqs.SendMessageInput{
+		MessageBody: aws.String(string(jsonData[:])),
+		QueueUrl:    aws.String(t.deployStatusEndpointAPI),
+	})
+}
+
 func (t *Tracker) sleepFor(attempts int) {
 	if attempts < 1 {
 		return

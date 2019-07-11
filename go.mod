@@ -3,6 +3,7 @@ module github.com/wish/kubetel
 go 1.12
 
 require (
+	github.com/aws/aws-sdk-go v1.20.19
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
