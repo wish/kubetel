@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
@@ -21,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -58,6 +58,15 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	k8sInformer := k8sIF.Apps().V1().Deployments()
 	deploymentClient := k8sClient.AppsV1().Deployments(viper.GetString("tracker.namespace"))
 
+	var client *http.Client
+	var rander *rand.Rand
+	if viper.GetString("tracker.endpoint") != "" {
+		client = &http.Client{
+			Timeout: time.Duration(5 * time.Second),
+		}
+		rander = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+
 	t := &Tracker{
 		k8scInformer: k8sInformer.Informer(),
 		kcdcInformer: kcdInformer.Informer(),
@@ -71,6 +80,8 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 
 		clusterName: viper.GetString("cluster"),
 		version:     viper.GetString("tracker.version"),
+		httpClient:  client,
+		rand:        rander,
 	}
 
 	t.k8scInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -123,6 +134,7 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 		log.Infof("new KCD with status: %s", podStatus)
 		if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 			t.enqueue(newKCD)
+			t.queue.ShutDown()
 		}
 	}
 }
@@ -136,6 +148,7 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 	log.Infof("new KCD with status: %s", podStatus)
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.enqueue(newKCD)
+		t.queue.ShutDown()
 	}
 }
 
@@ -151,7 +164,7 @@ func (t *Tracker) enqueue(obj interface{}) {
 }
 
 // Run starts the tracker
-func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}) error {
+func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.WaitGroup) error {
 	defer runtime.HandleCrash()
 	defer t.queue.ShutDown()
 
@@ -170,11 +183,17 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}) error {
 	log.Info("Cache sync completed")
 
 	for i := 0; i < threadCount; i++ {
-		go wait.Until(t.runWorker, time.Second, stopCh)
+		waitgroup.Add(1)
+		go func() {
+			defer waitgroup.Done()
+			t.runWorker()
+		}()
 	}
 	log.Info("Started Tracker")
 
 	<-stopCh
+	t.queue.ShutDown()
+	waitgroup.Wait()
 	log.Info("Shutting down tracker")
 	return nil
 }
