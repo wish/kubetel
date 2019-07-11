@@ -84,12 +84,19 @@ var deployTracker = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(deployTracker)
 	deployTracker.Flags().String("tracker-namespace", "", "namespace app to track is in")
-	deployTracker.Flags().String("kcdapp", "", "kcdapp to track")
-	deployTracker.Flags().String("version", "", "verson of tracked app")
-	deployTracker.Flags().String("endpoint", "", "endpoint to push results to")
+	deployTracker.Flags().String("tracker-kcdapp", "", "kcdapp to track")
+	deployTracker.Flags().String("tracker-version", "", "verson of tracked app")
+	deployTracker.Flags().String("tracker-endpoint", "", "endpoint to push results to")
+	deployTracker.Flags().String("tracker-endpointtype", "", "endpoint type to push results to")
+	deployTracker.Flags().Int("tracker-workercount", 2, "number of worker threads to run")
+	deployTracker.Flags().Int("tracker-maxrettries", 2, "number of times to retry pushing to endpoint")
 
 	viper.BindPFlag("tracker.namespace", deployController.Flags().Lookup("tracker-namespace"))
-	viper.BindPFlag("tracker.kcdapp", deployController.Flags().Lookup("kcdapp"))
-	viper.BindPFlag("tracker.version", deployController.Flags().Lookup("version"))
-	viper.BindPFlag("tracker.endpoint", deployController.Flags().Lookup("endpoint"))
+	viper.BindPFlag("tracker.kcdapp", deployController.Flags().Lookup("tracker-kcdapp"))
+	viper.BindPFlag("tracker.version", deployController.Flags().Lookup("tracker-version"))
+	viper.BindPFlag("tracker.endpoint", deployController.Flags().Lookup("tracker-endpoint"))
+	viper.BindPFlag("tracker.endpointtype", deployController.Flags().Lookup("tracker-endpointtype"))
+	viper.BindPFlag("tracker.workercount", deployController.Flags().Lookup("tracker-workercount"))
+	viper.BindPFlag("tracker.maxrettries", deployController.Flags().Lookup("tracker-maxrettries"))
+
 }
