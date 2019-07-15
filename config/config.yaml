@@ -10,5 +10,5 @@ tracker:
   endpointtype: sqs
 log:
   level: trace
-image: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel
+image: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0
 namespace: kube-system
