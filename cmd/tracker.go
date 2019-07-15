@@ -91,12 +91,12 @@ func init() {
 	deployTracker.Flags().Int("tracker-workercount", 2, "number of worker threads to run")
 	deployTracker.Flags().Int("tracker-maxrettries", 2, "number of times to retry pushing to endpoint")
 
-	viper.BindPFlag("tracker.namespace", deployController.Flags().Lookup("tracker-namespace"))
-	viper.BindPFlag("tracker.kcdapp", deployController.Flags().Lookup("tracker-kcdapp"))
-	viper.BindPFlag("tracker.version", deployController.Flags().Lookup("tracker-version"))
-	viper.BindPFlag("tracker.endpoint", deployController.Flags().Lookup("tracker-endpoint"))
-	viper.BindPFlag("tracker.endpointtype", deployController.Flags().Lookup("tracker-endpointtype"))
-	viper.BindPFlag("tracker.workercount", deployController.Flags().Lookup("tracker-workercount"))
-	viper.BindPFlag("tracker.maxrettries", deployController.Flags().Lookup("tracker-maxrettries"))
+	viper.BindPFlag("tracker.namespace", deployTracker.Flags().Lookup("tracker-namespace"))
+	viper.BindPFlag("tracker.kcdapp", deployTracker.Flags().Lookup("tracker-kcdapp"))
+	viper.BindPFlag("tracker.version", deployTracker.Flags().Lookup("tracker-version"))
+	viper.BindPFlag("tracker.endpoint", deployTracker.Flags().Lookup("tracker-endpoint"))
+	viper.BindPFlag("tracker.endpointtype", deployTracker.Flags().Lookup("tracker-endpointtype"))
+	viper.BindPFlag("tracker.workercount", deployTracker.Flags().Lookup("tracker-workercount"))
+	viper.BindPFlag("tracker.maxrettries", deployTracker.Flags().Lookup("tracker-maxrettries"))
 
 }
