@@ -111,5 +111,6 @@ func initConfig() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		log.Trace(viper.GetString("tracker.endpointtype"))
 	}
 }

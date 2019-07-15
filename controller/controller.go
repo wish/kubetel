@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -64,10 +65,12 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 func (c *Controller) enqueue(obj interface{}) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
+
 		runtime.HandleError(fmt.Errorf("error obtaining key for object being enqueue: %s", err.Error()))
 		log.Errorf("Failed to obtain key for object being enqueue: %v", err)
 		return
 	}
+	log.Tracef("Enququing object with key: %s", key)
 	c.queue.AddRateLimited(key)
 }
 
@@ -108,7 +111,7 @@ func (c *Controller) processNextItem() bool {
 	if shutdown {
 		return false
 	}
-	defer c.queue.Done(key)
+	c.queue.Done(key)
 
 	err := c.processItem(key.(string))
 
@@ -163,37 +166,41 @@ func (c *Controller) processItem(key string) error {
 	}
 
 	//If deployment is already being tracked do not create a new tracking job
-	_, err = jobsClient.Get(jobName, metav1.GetOptions{})
-	if err == nil {
-		job := &batchv1.Job{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      jobName,
-				Namespace: "kubedeploy",
-			},
-			Spec: batchv1.JobSpec{
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: jobName,
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name:  fmt.Sprintf("%s-container", jobName),
-								Image: viper.GetString("image"),
-								Args:  args,
-							},
+	var backoffLimit int32 = 10
+
+	log.Infof("Creating job for : %s", jobName)
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: jobName,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  fmt.Sprintf("%s-container", jobName),
+							Image: viper.GetString("image"),
+							Args:  args,
 						},
-						RestartPolicy: corev1.RestartPolicyOnFailure,
 					},
+					RestartPolicy: corev1.RestartPolicyOnFailure,
 				},
 			},
-		}
-		_, err := jobsClient.Create(job)
-		if err != nil {
-			return errors.Wrapf(err, "Failed to create job %s", job.Name)
-		}
+			BackoffLimit: &backoffLimit,
+		},
 	}
-	log.Infof("Job : %s : already exists, skipping", jobName)
+	_, err = jobsClient.Create(job)
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			log.Infof("Job : %s : already exists, skipping", jobName)
+			return nil
+		}
+		return errors.Wrapf(err, "Failed to create job %s", job.Name)
+	}
 	return nil
 }
 
