@@ -6,9 +6,9 @@ controller:
 tracker:
   maxRetries: 2
   workercount: 2
-  endpoint: 127.0.0.1
+  endpoint: "https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-stages"
+  endpointtype: sqs
 log:
   level: trace
-image:
-namespace:
-cluster:
+image: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0
+namespace: kube-system
