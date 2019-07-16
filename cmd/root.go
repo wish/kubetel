@@ -14,7 +14,7 @@ import (
 var (
 	k8sConfig string
 	cfgFile   string
-	noCfg     bool
+	useCfg    bool
 )
 
 func configureLogging() {
@@ -60,16 +60,21 @@ func init() {
 
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.PersistentFlags().BoolVar(&useCfg, "use-config", true, "Disable config file")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./kubetel.json)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "region", "", "aws region for sqs")
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().String("log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
-	rootCmd.PersistentFlags().BoolVar(&noCfg, "no-config", false, "Disable config file")
 	rootCmd.PersistentFlags().String("cluster", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Int("server-port", 80, "port to bind status endpoint")
 
 	if err := viper.BindPFlag("server.port", rootCmd.PersistentFlags().Lookup("server-port")); err != nil {
 		fmt.Printf("Error binding viper to cluster %s", err)
+		os.Exit(1)
+	}
+	if err := viper.BindPFlag("region", rootCmd.PersistentFlags().Lookup("region")); err != nil {
+		fmt.Printf("Error binding viper to region %s", err)
 		os.Exit(1)
 	}
 	if err := viper.BindPFlag("cluster", rootCmd.PersistentFlags().Lookup("cluster")); err != nil {
@@ -87,11 +92,10 @@ func init() {
 }
 
 func initConfig() {
-	if noCfg {
+	if useCfg {
 		if cfgFile != "" {
 			// Use config file from the flag.
 			viper.SetConfigFile(cfgFile)
-			viper.Set("cfgFile", cfgFile)
 		} else {
 			// Find home directory.
 			home, err := homedir.Dir()
@@ -111,6 +115,5 @@ func initConfig() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		log.Trace(viper.GetString("tracker.endpointtype"))
 	}
 }

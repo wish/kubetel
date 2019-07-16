@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -36,7 +35,8 @@ type Controller struct {
 
 	batchClient batchv1Client.BatchV1Interface
 
-	queue workqueue.RateLimitingInterface
+	queue     workqueue.RateLimitingInterface
+	kcdStates map[string]string
 }
 
 //NewController Creates a new deyployment controller
@@ -51,6 +51,7 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 		kcdcSynced:   kcdInformer.Informer().HasSynced,
 		batchClient:  batchClient,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
+		kcdStates:    make(map[string]string),
 	}
 
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -147,25 +148,26 @@ func (c *Controller) processItem(key string) error {
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	version := kcd.Status.CurrVersion
-	jobName := fmt.Sprintf("kubedeploy-tracker-%s-%s-%s", namespace, name, version)
+	jobName := fmt.Sprintf("deploy-tracker-%s-%s", name, version)
 
 	jobsClient := c.batchClient.Jobs(namespace)
 
 	args := []string{"tracker",
 		fmt.Sprintf("--cluster=%s", viper.GetString("cluster")),
+		fmt.Sprintf("--region=%s", viper.GetString("region")),
 		fmt.Sprintf("--log=%s", viper.GetString("log.level")),
-		fmt.Sprintf("--no-config=true"),
+		fmt.Sprintf("--use-config=false"),
 		fmt.Sprintf("--tracker-kcdapp=%s", kcd.Spec.Selector["kcdapp"]),
 		fmt.Sprintf("--tracker-version=%s", version),
 		fmt.Sprintf("--tracker-namespace=%s", namespace),
 		fmt.Sprintf("--tracker-endpointtype=%s", viper.GetString("tracker.endpointtype")),
-		fmt.Sprintf("--tracker-endpoint=%s", viper.GetString("tracker.endpointtype")),
+		fmt.Sprintf("--tracker-endpoint=%s", viper.GetString("tracker.endpoint")),
 		fmt.Sprintf("--tracker-maxretries=%d", viper.GetInt("tracker.maxretries")),
 		fmt.Sprintf("--tracker-workercount=%d", viper.GetInt("tracker.workercount")),
-		fmt.Sprintf("--port=%d", viper.GetInt("server.port")),
+		fmt.Sprintf("--server-port=%d", viper.GetInt("server.port")),
 	}
 
-	//If deployment is already being tracked do not create a new tracking job
+	//Number of time job will retry upon failure
 	var backoffLimit int32 = 10
 
 	log.Infof("Creating job for : %s", jobName)
@@ -182,12 +184,26 @@ func (c *Controller) processItem(key string) error {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  fmt.Sprintf("%s-container", jobName),
-							Image: viper.GetString("image"),
-							Args:  args,
+							Name:            fmt.Sprintf("%s-container", jobName),
+							Image:           viper.GetString("image"),
+							Args:            args,
+							ImagePullPolicy: corev1.PullAlways,
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          "https",
+									ContainerPort: 443,
+									Protocol:      "TCP",
+								},
+								{
+									Name:          "http",
+									ContainerPort: 80,
+									Protocol:      "TCP",
+								},
+							},
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyOnFailure,
+					RestartPolicy:      corev1.RestartPolicyOnFailure,
+					ServiceAccountName: "kubetel-tracker",
 				},
 			},
 			BackoffLimit: &backoffLimit,
@@ -205,35 +221,35 @@ func (c *Controller) processItem(key string) error {
 }
 
 func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
-	if !reflect.DeepEqual(oldObj, newObj) {
-		newKCD, ok := newObj.(*customv1.KCD)
-		if !ok {
-			log.Errorf("Not a KCD object")
-			return
-		}
-		oldKCD, ok := oldObj.(*customv1.KCD)
-		if !ok {
-			log.Errorf("Not a KCD object")
-			return
-		}
-		if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
-			log.Trace("no change")
-			return
-		}
-		if newKCD.Status.CurrStatus == kcdutil.StatusProgressing {
-			log.Trace(newKCD)
-			c.enqueue(newObj)
-		}
+
+	newKCD, ok := newObj.(*customv1.KCD)
+	if !ok {
+		log.Errorf("Not a KCD object")
+		return
 	}
+	oldKCD, ok := oldObj.(*customv1.KCD)
+	if !ok {
+		log.Errorf("Not a KCD object")
+		return
+	}
+	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
+		if newKCD.Status.CurrStatus == c.kcdStates[newKCD.Name] {
+			return
+		}
+		c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+	}
+	c.enqueue(newObj)
+
 }
+
 func (c *Controller) trackAddKcd(newObj interface{}) {
 	newKCD, ok := newObj.(*customv1.KCD)
 	if !ok {
 		log.Errorf("Not a KCD object")
 		return
 	}
+	c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing {
-		log.Trace(newKCD)
 		c.enqueue(newObj)
 	}
 }
