@@ -44,11 +44,12 @@ var deployController = &cobra.Command{
 		log.Trace("Suscessfully completed k8s authentication")
 
 		stopCh := signals.SetupSignalHandler()
+
+		//Set up k8s clients
 		k8sClient, err := kubernetes.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
 		}
-
 		customClient, err := clientset.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
@@ -65,6 +66,7 @@ var deployController = &cobra.Command{
 		}()
 
 		kcdcInformerFactory.Start(stopCh)
+
 		log.Debug("Staring Server")
 		err = healthmonitor.NewServer(viper.GetInt("server.port"), stopCh)
 		if err != nil {

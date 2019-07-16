@@ -8,9 +8,9 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
-	"reflect"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
@@ -55,6 +55,7 @@ type Tracker struct {
 	clusterName             string
 	version                 string
 	deployStatusEndpointAPI string
+	kcdStates               map[string]string
 }
 
 //NewTracker Creates a new tracker
@@ -75,7 +76,9 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 			rander = rand.New(rand.NewSource(time.Now().UnixNano()))
 		}
 	case "sqs":
-		sess := session.Must(session.NewSession())
+		sess := session.Must(session.NewSession(&aws.Config{
+			Region: aws.String(viper.GetString("region")),
+		}))
 		sqsClient = sqs.New(sess)
 	}
 
@@ -97,6 +100,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		httpClient: httpClient,
 		rand:       rander,
 		sqsClient:  sqsClient,
+		kcdStates:  make(map[string]string),
 	}
 
 	t.k8scInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -110,50 +114,52 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 }
 
 func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
-	if !reflect.DeepEqual(oldObj, newObj) {
-		newDeploy, ok := newObj.(*appsv1.Deployment)
-		if !ok {
-			log.Errorf("Not a deploy object")
-			return
-		}
-		oldDeploy, ok := oldObj.(*appsv1.Deployment)
-		if !ok {
-			return
-		}
-		name, ok := oldDeploy.Labels["kcdapp"]
-		if !ok {
-			return
-		}
-		if name == viper.GetString("tracker.kcdapp") {
-			log.Infof("Deployment updated: %s", name)
-			t.enqueue(newDeploy)
-		}
+	newDeploy, ok := newObj.(*appsv1.Deployment)
+	if !ok {
+		log.Errorf("Not a deploy object")
+		return
 	}
+	oldDeploy, ok := oldObj.(*appsv1.Deployment)
+	if !ok {
+		return
+	}
+	name, ok := oldDeploy.Labels["kcdapp"]
+	if !ok {
+		return
+	}
+	if name == viper.GetString("tracker.kcdapp") {
+		log.Infof("Deployment updated: %s", name)
+		t.enqueue(newDeploy)
+	}
+
 }
 
 func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
-	if !reflect.DeepEqual(oldObj, newObj) {
-		newKCD, ok := newObj.(*customv1.KCD)
-		if !ok {
-			log.Errorf("Not a KCD object")
+	newKCD, ok := newObj.(*customv1.KCD)
+	if !ok {
+		log.Errorf("Not a KCD object")
+		return
+	}
+	oldKCD, ok := oldObj.(*customv1.KCD)
+	if !ok {
+		log.Errorf("Not a KCD object")
+		return
+	}
+	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
+		if newKCD.Status.CurrStatus == t.kcdStates[newKCD.Name] {
 			return
 		}
-		oldKCD, ok := oldObj.(*customv1.KCD)
-		if !ok {
-			log.Errorf("Not a KCD object")
-			return
-		}
-		if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
-			return
-		}
-		log.Infof("KCD status updated: %s", newKCD.Status.CurrStatus)
 		podStatus := newKCD.Status.CurrStatus
+		log.Infof("KCD status updated: %s", podStatus)
+		t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 		log.Infof("new KCD with status: %s", podStatus)
 		if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 			t.enqueue(newKCD)
 			t.queue.ShutDown()
 		}
 	}
+	t.enqueue(newObj)
+
 }
 func (t *Tracker) trackAddKcd(newObj interface{}) {
 	newKCD, ok := newObj.(*customv1.KCD)
@@ -163,6 +169,7 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 	}
 	podStatus := newKCD.Status.CurrStatus
 	log.Infof("new KCD with status: %s", podStatus)
+	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.enqueue(newKCD)
 		t.queue.ShutDown()
@@ -207,6 +214,11 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 		}()
 	}
 	log.Info("Started Tracker")
+
+	go func() {
+		waitgroup.Wait()
+		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+	}()
 
 	<-stopCh
 	t.queue.ShutDown()
@@ -253,17 +265,14 @@ func (t *Tracker) processItem(key string) error {
 		return err
 	}
 	if !exists {
-		return errors.New("Object does not exists")
-	}
-	deployment, ok := obj.(*appsv1.Deployment)
-	if !ok {
-		kcd, ok := obj.(*v1.KCD)
+		obj, exists, err = t.k8scInformer.GetIndexer().GetByKey(key)
+		if !exists {
+			return errors.New("Object does not exists")
+		}
+		deployment, ok := obj.(*appsv1.Deployment)
 		if !ok {
 			return err
 		}
-		t.sendDeployedFinishedEvent(kcd)
-
-	} else {
 		statusData := StatusData{
 			t.clusterName,
 			time.Now().UTC(),
@@ -271,7 +280,13 @@ func (t *Tracker) processItem(key string) error {
 			t.version,
 		}
 		t.sendDeploymentEvent(t.deployStatusEndpointAPI, statusData)
+
 	}
+	kcd, ok := obj.(*v1.KCD)
+	if !ok {
+		return err
+	}
+	t.sendDeployedFinishedEvent(kcd)
 
 	return nil
 }
@@ -300,7 +315,13 @@ func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
 			t.version,
 			success,
 		}
-		t.sendDeploymentEvent(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
+		switch endtype := viper.GetString("tracker.endpointtype"); endtype {
+		case "http":
+			t.sendDeploymentEvent(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
+		case "sqs":
+			t.sendDeploymentEvent(t.deployStatusEndpointAPI, statusData)
+		}
+
 	}
 }
 
@@ -347,10 +368,15 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, data interface{}) {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
 		return
 	}
-	t.sqsClient.SendMessage(&sqs.SendMessageInput{
+	log.Tracef("Sending: %s", jsonData)
+	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageBody: aws.String(string(jsonData[:])),
 		QueueUrl:    aws.String(t.deployStatusEndpointAPI),
 	})
+	if err != nil {
+		log.Errorf("Failed sending the deployment object: %v", err)
+		return
+	}
 }
 
 func (t *Tracker) sleepFor(attempts int) {

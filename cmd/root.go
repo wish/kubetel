@@ -60,11 +60,11 @@ func init() {
 
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.PersistentFlags().BoolVar(&noCfg, "no-config", false, "Disable config file")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./kubetel.json)")
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().String("log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
-	rootCmd.PersistentFlags().BoolVar(&noCfg, "no-config", false, "Disable config file")
 	rootCmd.PersistentFlags().String("cluster", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Int("server-port", 80, "port to bind status endpoint")
 
@@ -87,7 +87,7 @@ func init() {
 }
 
 func initConfig() {
-	if noCfg {
+	if !noCfg {
 		if cfgFile != "" {
 			// Use config file from the flag.
 			viper.SetConfigFile(cfgFile)
@@ -111,6 +111,5 @@ func initConfig() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		log.Trace(viper.GetString("tracker.endpointtype"))
 	}
 }

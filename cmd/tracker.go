@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -48,7 +47,6 @@ var deployTracker = &cobra.Command{
 		if err != nil {
 			panic(err.Error())
 		}
-
 		customClient, err := clientset.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
@@ -62,10 +60,6 @@ var deployTracker = &cobra.Command{
 			if err = t.Run(viper.GetInt("tracker.workercount"), stopCh, &waitgroup); err != nil {
 				log.Infof("Shutting down tracker: %v", err)
 			}
-		}()
-		go func() {
-			waitgroup.Wait()
-			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		}()
 
 		k8sInformerFactory.Start(stopCh)
