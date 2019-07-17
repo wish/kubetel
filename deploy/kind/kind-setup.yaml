@@ -1,0 +1,153 @@
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: kcds.custom.k8s.io
+spec:
+  group: custom.k8s.io
+  names:
+    kind: KCD
+    plural: kcds
+    shortNames:
+    - kcd
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            config:
+              key:
+                type: string
+              name:
+                type: string
+            container:
+              name:
+                type: string
+              required:
+              - name
+              verify:
+                image:
+                  pattern: "^[^:]*$"
+                  type: string
+                kind:
+                  type: string
+                timeoutSeconds:
+                  type: integer
+                type: array
+            imageRepo:
+              pattern: "^[^:]*$"
+              type: string
+            livenessSeconds:
+              type: integer
+            pollIntervalSeconds:
+              type: integer
+            selector:
+              properties:
+                kcdapp:
+                  type: string
+              required:
+              - kcdapp
+            strategy:
+              blueGreen:
+                labelNames:
+                  items:
+                    type: string
+                  type: array
+                scaleDown:
+                  type: boolean
+                serviceName:
+                  type: string
+                timeoutSeconds:
+                  type: integer
+                verificationServiceName:
+                  type: string
+              kind:
+                type: string
+              verify:
+                image:
+                  pattern: "^[^:]*$"
+                  type: string
+                kind:
+                  type: string
+                type: array
+            tag:
+              pattern: "^[a-zA-Z0-9-_.]*$"
+              type: string
+            versionSyntax:
+              type: string
+          required:
+          - tag
+          - imageRepo
+          - selector
+          - container
+  version: v1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubetel
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubetel
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+- apiGroups:
+  - custom.k8s.io
+  resources:
+  - kcds
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ''
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - create
+- apiGroups:
+  - ''
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubetel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubetel
+subjects:
+- kind: ServiceAccount
+  name: kubetel
+  namespace: kube-system

@@ -1,10 +1,18 @@
 language: go
 
+services:
+  - docker
+
 go:
   - "1.12.x"
 
 before_install:
   - go get -u golang.org/x/lint/golint
+  - curl -Lo kind https://github.com/kubernetes-sigs/kind/releases/download/v0.4.0/kind-linux-amd64 && chmod +x kind && sudo mv kind /usr/local/bin/
+  - kind create cluster --config deploy/kind/cluster.yaml
+  - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/v1.7.0/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+  - export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
+  - kubectl apply -f deploy/kind/kind-setup.yaml --validate=false
 
 git:
   depth: 1
@@ -12,7 +20,19 @@ git:
 notifications:
   email: false
 
-script:
-  - env GO111MODULE=on make build
-  - env GO111MODULE=on make lint
-  - env GO111MODULE=on make vet
+jobs:
+  include:
+    - stage: build
+      script:
+        - env GO111MODULE=on make lint
+        - env GO111MODULE=on make vet
+        - docker build -t kubetel:travis .
+        - kind load docker-image kubetel:travis
+        - kubectl apply -f deploy/kind/kind-ci-deploy.yaml --validate=false
+        - sleep 1m
+        - kubectl get all
+
+
+
+
+
