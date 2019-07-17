@@ -368,7 +368,7 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, data interface{}) {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
 		return
 	}
-	log.Tracef("Sending: %s", jsonData)
+	log.Tracef("Sending: deploy")
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageBody: aws.String(string(jsonData[:])),
 		QueueUrl:    aws.String(t.deployStatusEndpointAPI),

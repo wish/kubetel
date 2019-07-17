@@ -233,12 +233,15 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 		return
 	}
 	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
-		if newKCD.Status.CurrStatus == c.kcdStates[newKCD.Name] {
-			return
-		}
-		c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+		return
 	}
-	c.enqueue(newObj)
+	if newKCD.Status.CurrStatus == c.kcdStates[newKCD.Name] {
+		return
+	}
+	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing && c.kcdStates[newKCD.Name] != kcdutil.StatusProgressing {
+		c.enqueue(newObj)
+	}
+	c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 
 }
 
