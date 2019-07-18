@@ -140,27 +140,18 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 		log.Errorf("Not a KCD object")
 		return
 	}
-	oldKCD, ok := oldObj.(*customv1.KCD)
-	if !ok {
-		log.Errorf("Not a KCD object")
+	if newKCD.Status.CurrStatus == t.kcdStates[newKCD.Name] {
 		return
 	}
-	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
-		if newKCD.Status.CurrStatus == t.kcdStates[newKCD.Name] {
-			return
-		}
-		podStatus := newKCD.Status.CurrStatus
-		log.Infof("KCD status updated: %s", podStatus)
-		t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
-		log.Infof("new KCD with status: %s", podStatus)
-		if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
-			t.enqueue(newKCD)
-			t.queue.ShutDown()
-		}
+	podStatus := newKCD.Status.CurrStatus
+	log.Infof("KCD status updated: %s", podStatus)
+	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
+		log.Trace("Enqueue KCD")
+		t.enqueue(newKCD)
 	}
-	t.enqueue(newObj)
-
 }
+
 func (t *Tracker) trackAddKcd(newObj interface{}) {
 	newKCD, ok := newObj.(*customv1.KCD)
 	if !ok {
@@ -172,7 +163,6 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.enqueue(newKCD)
-		t.queue.ShutDown()
 	}
 }
 
@@ -281,18 +271,19 @@ func (t *Tracker) processItem(key string) error {
 		}
 		t.sendDeploymentEvent(t.deployStatusEndpointAPI, statusData)
 
-	}
-	kcd, ok := obj.(*v1.KCD)
-	if !ok {
-		return err
-	}
-	t.sendDeployedFinishedEvent(kcd)
+	} else {
+		kcd, ok := obj.(*v1.KCD)
+		if !ok {
+			return errors.New("Not kcd object")
+		}
+		t.sendDeployedFinishedEvent(kcd)
+		t.queue.ShutDown()
 
+	}
 	return nil
 }
 
 func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
-
 	status := kcd.Status.CurrStatus
 	success := false
 	if status == kcdutil.StatusSuccess {
@@ -307,6 +298,7 @@ func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
 		return
 	}
 	for _, item := range deployments.Items {
+		log.Tracef("Sending: deploy finished")
 		deployment := item
 		statusData := FinishedStatusData{
 			t.clusterName,
@@ -317,9 +309,9 @@ func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
 		}
 		switch endtype := viper.GetString("tracker.endpointtype"); endtype {
 		case "http":
-			t.sendDeploymentEvent(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
+			t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
 		case "sqs":
-			t.sendDeploymentEvent(t.deployStatusEndpointAPI, statusData)
+			t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, statusData)
 		}
 
 	}
