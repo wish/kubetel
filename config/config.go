@@ -2,14 +2,15 @@ package config
 
 //KubeDeployConfig for config file structure
 type KubeDeployConfig struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Controller ControllerConfig `mapstructure:"controller"`
-	Tracker    TrackerConfig    `mapstructure:"tracker"`
-	Log        LogConfig        `mapstructure:"log"`
-	Image      string           `mapstructure:"image"`
-	Namespace  string           `mapstructure:"namespace"`
-	Cluster    string           `mapstructure:"cluster"`
-	Region     string           `mapstructure:"region"`
+	Server       ServerConfig      `mapstructure:"server"`
+	Controller   ControllerConfig  `mapstructure:"controller"`
+	Tracker      TrackerConfig     `mapstructure:"tracker"`
+	Log          LogConfig         `mapstructure:"log"`
+	Image        string            `mapstructure:"image"`
+	Namespace    string            `mapstructure:"namespace"`
+	Cluster      string            `mapstructure:"cluster"`
+	Region       string            `mapstructure:"region"`
+	nodeSelector map[string]string `mapstructure:"nodeselector"`
 }
 
 //LogConfig for config file structure

@@ -182,6 +182,7 @@ func (c *Controller) processItem(key string) error {
 					Name: jobName,
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector: viper.GetStringMapString("nodeSelector"),
 					Containers: []corev1.Container{
 						{
 							Name:            fmt.Sprintf("%s-container", jobName),

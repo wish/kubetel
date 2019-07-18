@@ -68,9 +68,14 @@ func init() {
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
 	rootCmd.PersistentFlags().String("cluster", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Int("server-port", 80, "port to bind status endpoint")
+	rootCmd.PersistentFlags().StringToString("nodeSelector", map[string]string{"": ""}, "Node selector for job in form map[string]string")
 
 	if err := viper.BindPFlag("server.port", rootCmd.PersistentFlags().Lookup("server-port")); err != nil {
 		fmt.Printf("Error binding viper to cluster %s", err)
+		os.Exit(1)
+	}
+	if err := viper.BindPFlag("nodeSelector", rootCmd.PersistentFlags().Lookup("nodeSelector")); err != nil {
+		fmt.Printf("Error binding viper to nodeSelector %s", err)
 		os.Exit(1)
 	}
 	if err := viper.BindPFlag("region", rootCmd.PersistentFlags().Lookup("region")); err != nil {
