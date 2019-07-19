@@ -311,7 +311,7 @@ func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
 		case "http":
 			t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
 		case "sqs":
-			t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, statusData)
+			t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, "deployFinished", statusData)
 		}
 
 	}
@@ -322,7 +322,7 @@ func (t *Tracker) sendDeploymentEvent(endpoint string, data interface{}) {
 	case "http":
 		t.sendDeploymentEventHTTP(endpoint, data)
 	case "sqs":
-		t.sendDeploymentEventSQS(endpoint, data)
+		t.sendDeploymentEventSQS(endpoint, "deployStatus", data)
 	}
 
 }
@@ -354,14 +354,24 @@ func (t *Tracker) sendDeploymentEventHTTP(endpoint string, data interface{}) {
 	}
 }
 
-func (t *Tracker) sendDeploymentEventSQS(endpoint string, data interface{}) {
+func (t *Tracker) sendDeploymentEventSQS(endpoint, messageType string, data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
 		return
 	}
-	log.Tracef("Sending: deploy")
+	log.Tracef("Sending: deploy message")
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
+		MessageAttributes: map[string]*sqs.MessageAttributeValue{
+			"Type": &sqs.MessageAttributeValue{
+				DataType:    aws.String("String"),
+				StringValue: aws.String(messageType),
+			},
+			"Version": &sqs.MessageAttributeValue{
+				DataType:    aws.String("String"),
+				StringValue: aws.String("v1alpha1"),
+			},
+		},
 		MessageBody: aws.String(string(jsonData[:])),
 		QueueUrl:    aws.String(t.deployStatusEndpointAPI),
 	})
