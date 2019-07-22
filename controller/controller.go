@@ -151,6 +151,19 @@ func (c *Controller) processItem(key string) error {
 	jobName := fmt.Sprintf("deploy-tracker-%s-%s", name, version)
 
 	jobsClient := c.batchClient.Jobs(namespace)
+	var gracePeriodSeconds int64
+	exJob, err := jobsClient.Get(jobName, metav1.GetOptions{})
+	if err == nil {
+		for _, condition := range exJob.Status.Conditions {
+			if (condition.Type == "Complete" || condition.Type == "Failed") &&
+				condition.Status == "True" {
+				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds})
+				if err != nil {
+					log.Warnf("failed to delete job %s with error: %s", jobName, err)
+				}
+			}
+		}
+	}
 
 	args := []string{"tracker",
 		fmt.Sprintf("--cluster=%s", viper.GetString("cluster")),
