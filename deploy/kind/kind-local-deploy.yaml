@@ -1,0 +1,66 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    kcdapp: kubetel
+  name: kubetel
+  namespace: kube-system
+spec:
+  minReadySeconds: 30
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubetel
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kubetel
+        component: kubetel
+    spec:
+      containers:
+      - args:
+        - controller
+        - "--config=/etc/config/kubetel.yaml"
+        - "--cluster=app-05-dev.k8s.local"
+        - "--log=trace"
+        image: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: "/status"
+            port: http
+        name: kubetel
+        ports:
+        - containerPort: 8081
+          name: http
+          protocol: TCP
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: "/status"
+            port: http
+        volumeMounts:
+        - mountPath: "/etc/config"
+          name: kubetel-config
+      serviceAccountName: kubetel
+      imagePullSecrets:
+        - name: regcred
+      volumes:
+      - configMap:
+          name: kubetel-config
+        name: kubetel-config
+---
+apiVersion: v1
+data:
+  kubetel.yaml: "\"cluster\": \"app-05-dev.k8s.local\"\n\"controller\": \n  \"maxretries\": 2\n  \"workercount\": 2\n\"image\": \"951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0\"\n\"log\": \n  \"level\": \"trace\"\n\"namespace\": \"kube-system\"\n\"region\": \"us-west-1\"\n\"server\": \n  \"port\": 8081\n\"tracker\": \n  \"endpoint\": \"https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-dev\"\n  \"endpointtype\": \"sqs\"\n  \"maxretries\": 2\n  \"workercount\": 2"
+kind: ConfigMap
+metadata:
+  name: kubetel-config
+  namespace: kube-system
