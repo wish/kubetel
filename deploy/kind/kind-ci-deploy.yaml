@@ -28,7 +28,7 @@ spec:
         - "--config=/etc/config/kubetel.yaml"
         - "--cluster=app-05-dev.k8s.local"
         - "--log=trace"
-        image: 951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:travis
+        image: kubetel:travis
         imagePullPolicy: Never
         livenessProbe:
           httpGet:
