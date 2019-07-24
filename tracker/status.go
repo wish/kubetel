@@ -6,6 +6,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 )
 
+//DeployMessage hold a message information
+type DeployMessage struct {
+	Type    string
+	Version string
+	Body    interface{}
+}
+
 //StatusData format of data to send to kubedeploy
 type StatusData struct {
 	Cluster   string
