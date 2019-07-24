@@ -11,6 +11,7 @@ type DeployMessage struct {
 	Type    string
 	Version string
 	Body    interface{}
+	Retries int
 }
 
 //StatusData format of data to send to kubedeploy

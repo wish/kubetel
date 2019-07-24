@@ -146,7 +146,28 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 }
 
 func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
-	t.trackAddKcd(newObj)
+	newKCD, ok := newObj.(*customv1.KCD)
+	if !ok {
+		log.Errorf("Not a KCD object")
+		return
+	}
+	if newKCD.Status.CurrStatus == t.kcdStates[newKCD.Name] {
+		return
+	}
+	podStatus := newKCD.Status.CurrStatus
+	log.Infof("KCD status updated: %s", podStatus)
+	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
+		messages := t.deployFinishHandler(newKCD)
+		for _, m := range messages {
+			t.enqueue(m)
+		}
+		log.Info("Closing queue")
+		if atomic.LoadInt32(&t.queueDone) == int32(0) {
+			atomic.StoreInt32(&t.queueDone, int32(1))
+			close(t.queue)
+		}
+	}
 }
 
 func (t *Tracker) trackAddKcd(newObj interface{}) {
@@ -163,8 +184,11 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 		for _, m := range messages {
 			t.enqueue(m)
 		}
-		atomic.StoreInt32(&t.queueDone, 1)
-		close(t.queue)
+		log.Info("Closing queue")
+		if atomic.LoadInt32(&t.queueDone) == int32(0) {
+			atomic.StoreInt32(&t.queueDone, int32(1))
+			close(t.queue)
+		}
 	}
 }
 
@@ -218,10 +242,11 @@ func (t *Tracker) enqueue(m DeployMessage) {
 	}
 }
 
-func (t *Tracker) attemptEnqeue(data DeployMessage) bool {
+func (t *Tracker) attemptEnqeue(m DeployMessage) bool {
 	if atomic.LoadInt32(&t.queueDone) == int32(0) {
 		select {
-		case t.queue <- data:
+		case t.queue <- m:
+			log.Trace("enqueued message")
 			return true
 		default:
 			return false
@@ -273,7 +298,15 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 func (t *Tracker) runWorker() {
 	log.Info("Running worker")
 	for m := range t.queue {
-		t.processNextItem(m)
+		log.Info("Dequeue Message")
+		success := t.processNextItem(m)
+		if !success {
+			go func() {
+				m.Retries++
+				time.Sleep(t.sleepDuration(m.Retries))
+				t.enqueue(m)
+			}()
+		}
 	}
 }
 
@@ -351,12 +384,9 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 	return true
 }
 
-func (t *Tracker) sleepFor(attempts int) {
-	if attempts < 1 {
-		return
-	}
+func (t *Tracker) sleepDuration(attempts int) time.Duration {
 	sleepTime := (t.rand.Float64() + 1) + math.Pow(2, float64(attempts-0))
 	durationStr := fmt.Sprintf("%ss", strconv.FormatFloat(sleepTime, 'f', 2, 64))
 	sleepDuration, _ := time.ParseDuration(durationStr)
-	time.Sleep(sleepDuration)
+	return sleepDuration
 }
