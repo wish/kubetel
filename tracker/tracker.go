@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
-	v1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
 	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
 	kcdutil "github.com/wish/kubetel/gok8s/kcdutil"
 
@@ -26,7 +26,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -43,7 +42,8 @@ type Tracker struct {
 	k8scSynced cache.InformerSynced
 	kcdcSynced cache.InformerSynced
 
-	queue workqueue.RateLimitingInterface
+	queue     chan DeployMessage
+	queueDone int32
 
 	deploymentClient appsclientv1.DeploymentInterface
 
@@ -91,7 +91,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		k8scSynced: k8sInformer.Informer().HasSynced,
 		kcdcSynced: kcdInformer.Informer().HasSynced,
 
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployTracker"),
+		queue: make(chan DeployMessage, 200),
 
 		clusterName:             viper.GetString("cluster"),
 		version:                 viper.GetString("tracker.version"),
@@ -113,6 +113,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	return t, nil
 }
 
+//This function can be eventully improved to provide more useful information
 func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	newDeploy, ok := newObj.(*appsv1.Deployment)
 	if !ok {
@@ -129,7 +130,17 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	}
 	if name == viper.GetString("tracker.kcdapp") {
 		log.Infof("Deployment updated: %s", name)
-		t.enqueue(newDeploy)
+		deployMessage := DeployMessage{
+			Type:    "deployStatus",
+			Version: "v1alpha1",
+			Body: StatusData{
+				t.clusterName,
+				time.Now().UTC(),
+				*newDeploy,
+				t.version,
+			},
+		}
+		t.enqueue(deployMessage)
 	}
 
 }
@@ -147,8 +158,15 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 	log.Infof("KCD status updated: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
-		log.Trace("Enqueue KCD")
-		t.enqueue(newKCD)
+		messages := t.deployFinishHandler(newKCD)
+		for _, m := range messages {
+			t.enqueue(m)
+		}
+		log.Info("Closing queue")
+		if atomic.LoadInt32(&t.queueDone) == int32(0) {
+			atomic.StoreInt32(&t.queueDone, int32(1))
+			close(t.queue)
+		}
 	}
 }
 
@@ -159,28 +177,88 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 		return
 	}
 	podStatus := newKCD.Status.CurrStatus
-	log.Infof("new KCD with status: %s", podStatus)
+	log.Tracef("KCD with status: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
-		t.enqueue(newKCD)
+		messages := t.deployFinishHandler(newKCD)
+		for _, m := range messages {
+			t.enqueue(m)
+		}
+		log.Info("Closing queue")
+		if atomic.LoadInt32(&t.queueDone) == int32(0) {
+			atomic.StoreInt32(&t.queueDone, int32(1))
+			close(t.queue)
+		}
 	}
 }
 
-//Adds a new job request into the work queue
-func (t *Tracker) enqueue(obj interface{}) {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) (messages []DeployMessage) {
+	status := kcd.Status.CurrStatus
+	success := false
+	if status == kcdutil.StatusSuccess {
+		success = true
+	}
+	set := labels.Set(kcd.Spec.Selector)
+	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
+	deployments, err := t.deploymentClient.List(listOpts)
 	if err != nil {
-		runtime.HandleError(fmt.Errorf("error obtaining key for object being enqueue: %s", err.Error()))
-		log.Errorf("Failed to obtain key for object being enqueue: %v", err)
 		return
 	}
-	t.queue.AddRateLimited(key)
+	for _, item := range deployments.Items {
+		deployment := item
+		deployMessage := DeployMessage{
+			Type:    "deployFinished",
+			Version: "v1alpha1",
+			Body: FinishedStatusData{
+				t.clusterName,
+				time.Now().UTC(),
+				deployment,
+				t.version,
+				success,
+			},
+		}
+		messages = append(messages, deployMessage)
+	}
+
+	if !success {
+		failureMessages := t.deployFailureHandler(kcd)
+		if failureMessages != nil {
+			messages = append(messages, failureMessages...)
+		}
+	}
+	return messages
+}
+
+//Placeholder function to grab additional information uppon failure
+func (t *Tracker) deployFailureHandler(kcd *customv1.KCD) (messages []DeployMessage) {
+	//TODO
+	return nil
+}
+
+//Adds a new job request into the work queue without
+func (t *Tracker) enqueue(m DeployMessage) {
+	for !t.attemptEnqeue(m) {
+		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+	}
+}
+
+func (t *Tracker) attemptEnqeue(m DeployMessage) bool {
+	if atomic.LoadInt32(&t.queueDone) == int32(0) {
+		select {
+		case t.queue <- m:
+			log.Trace("enqueued message")
+			return true
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // Run starts the tracker
 func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.WaitGroup) error {
 	defer runtime.HandleCrash()
-	defer t.queue.ShutDown()
+	//defer t.queue.ShutDown()
 
 	log.Info("Starting Tracker")
 
@@ -211,7 +289,7 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 	}()
 
 	<-stopCh
-	t.queue.ShutDown()
+	//t.queue.ShutDown()
 	waitgroup.Wait()
 	log.Info("Shutting down tracker")
 	return nil
@@ -219,146 +297,70 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 
 func (t *Tracker) runWorker() {
 	log.Info("Running worker")
-	for t.processNextItem() {
+	for m := range t.queue {
+		log.Info("Dequeue Message")
+		success := t.processNextItem(m)
+		if !success {
+			go func() {
+				m.Retries++
+				time.Sleep(t.sleepDuration(m.Retries))
+				t.enqueue(m)
+			}()
+		}
 	}
 }
 
-//dequeues workqueue with retry if failed
-func (t *Tracker) processNextItem() bool {
-	key, shutdown := t.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer t.queue.Done(key)
-
-	err := t.processItem(key.(string))
-
-	maxRetries := viper.GetInt("tracker.maxretries")
-
-	if err == nil {
-		t.queue.Forget(key)
-	} else if t.queue.NumRequeues(key) < maxRetries {
-		log.Errorf("Error processing %s (will retry): %v", key, err)
-		t.queue.AddRateLimited(key)
-	} else {
-		log.Errorf("Error processing %s (giving up): %v", key, err)
-		t.queue.Forget(key)
-		runtime.HandleError(err)
-	}
-
-	return true
-}
-
-func (t *Tracker) processItem(key string) error {
-	obj, exists, err := t.kcdcInformer.GetIndexer().GetByKey(key)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		obj, exists, err = t.k8scInformer.GetIndexer().GetByKey(key)
-		if !exists {
-			return errors.New("Object does not exists")
-		}
-		deployment, ok := obj.(*appsv1.Deployment)
-		if !ok {
-			return err
-		}
-		statusData := StatusData{
-			t.clusterName,
-			time.Now().UTC(),
-			*deployment,
-			t.version,
-		}
-		t.sendDeploymentEvent(t.deployStatusEndpointAPI, statusData)
-
-	} else {
-		kcd, ok := obj.(*v1.KCD)
-		if !ok {
-			return errors.New("Not kcd object")
-		}
-		t.sendDeployedFinishedEvent(kcd)
-		t.queue.ShutDown()
-
-	}
-	return nil
-}
-
-func (t *Tracker) sendDeployedFinishedEvent(kcd *customv1.KCD) {
-	status := kcd.Status.CurrStatus
-	success := false
-	if status == kcdutil.StatusSuccess {
-		success = true
-	} else if status == kcdutil.StatusProgressing {
-		return
-	}
-	set := labels.Set(kcd.Spec.Selector)
-	listOpts := metav1.ListOptions{LabelSelector: set.AsSelector().String()}
-	deployments, err := t.deploymentClient.List(listOpts)
-	if err != nil {
-		return
-	}
-	for _, item := range deployments.Items {
-		log.Tracef("Sending: deploy finished")
-		deployment := item
-		statusData := FinishedStatusData{
-			t.clusterName,
-			time.Now().UTC(),
-			deployment,
-			t.version,
-			success,
-		}
-		switch endtype := viper.GetString("tracker.endpointtype"); endtype {
-		case "http":
-			t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), statusData)
-		case "sqs":
-			t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, "deployFinished", statusData)
-		}
-
-	}
-}
-
-func (t *Tracker) sendDeploymentEvent(endpoint string, data interface{}) {
+func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	switch endtype := viper.GetString("tracker.endpointtype"); endtype {
 	case "http":
-		t.sendDeploymentEventHTTP(endpoint, data)
+		switch messageType := data.Type; messageType {
+		case "deployFinish":
+			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), data)
+		case "deployStatus":
+			success = t.sendDeploymentEventHTTP(t.deployStatusEndpointAPI, data)
+		default:
+			log.WithFields(log.Fields{"message_type": messageType}).Warn("Unknown message type for http endpoint")
+			success = true //Prevent Retry for bad message
+		}
 	case "sqs":
-		t.sendDeploymentEventSQS(endpoint, "deployStatus", data)
+		success = t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, data)
+	default:
+		log.WithFields(log.Fields{"endpoint_type": endtype}).Warn("Unknown endpoint type")
+		success = true //Prevent Retry for bad message
 	}
-
+	return success
 }
 
-func (t *Tracker) sendDeploymentEventHTTP(endpoint string, data interface{}) {
-	jsonData, err := json.Marshal(data)
+func (t *Tracker) sendDeploymentEventHTTP(endpoint string, m DeployMessage) bool {
+	jsonData, err := json.Marshal(m.Body)
 	if err != nil {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
-		return
+		return false
 	}
-
-	for retries := 0; retries < 5; retries++ {
-		t.sleepFor(retries)
-
-		resp, err := t.httpClient.Post(endpoint, "application/json", bytes.NewBuffer(jsonData))
-		if err != nil {
-			log.Errorf("failed to send deployment event to %s: %v", endpoint, err)
-			continue
-		}
-		if resp.StatusCode >= 400 {
-			var result map[string]interface{}
-			json.NewDecoder(resp.Body).Decode(&result)
-			log.Infof("response: %v", result)
-			resp.Body.Close()
-			continue
-		}
+	resp, err := t.httpClient.Post(endpoint, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Errorf("failed to send deployment event to %s: %v", endpoint, err)
+		return false
+	}
+	if resp.StatusCode >= 400 {
+		var result map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&result)
+		log.Infof("response: %v", result)
 		resp.Body.Close()
-		break
+		return false
 	}
+	resp.Body.Close()
+	return true
+
 }
 
-func (t *Tracker) sendDeploymentEventSQS(endpoint, messageType string, data interface{}) {
-	jsonData, err := json.Marshal(data)
+func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool {
+	messageType := m.Type
+	messageVersion := m.Version
+	jsonData, err := json.Marshal(m.Body)
 	if err != nil {
 		log.Errorf("Failed marshalling the deployment object: %v", err)
-		return
+		return false
 	}
 	log.Tracef("Sending: deploy message")
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
@@ -369,24 +371,22 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint, messageType string, data inte
 			},
 			"Version": &sqs.MessageAttributeValue{
 				DataType:    aws.String("String"),
-				StringValue: aws.String("v1alpha1"),
+				StringValue: aws.String(messageVersion),
 			},
 		},
 		MessageBody: aws.String(string(jsonData[:])),
-		QueueUrl:    aws.String(t.deployStatusEndpointAPI),
+		QueueUrl:    aws.String(endpoint),
 	})
 	if err != nil {
 		log.Errorf("Failed sending the deployment object: %v", err)
-		return
+		return false
 	}
+	return true
 }
 
-func (t *Tracker) sleepFor(attempts int) {
-	if attempts < 1 {
-		return
-	}
+func (t *Tracker) sleepDuration(attempts int) time.Duration {
 	sleepTime := (t.rand.Float64() + 1) + math.Pow(2, float64(attempts-0))
 	durationStr := fmt.Sprintf("%ss", strconv.FormatFloat(sleepTime, 'f', 2, 64))
 	sleepDuration, _ := time.ParseDuration(durationStr)
-	time.Sleep(sleepDuration)
+	return sleepDuration
 }
