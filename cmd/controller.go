@@ -14,6 +14,7 @@ import (
 	"github.com/wish/kubetel/healthmonitor"
 	"github.com/wish/kubetel/signals"
 
+	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc" //For authenthication
 	"k8s.io/client-go/rest"
@@ -56,9 +57,10 @@ var deployController = &cobra.Command{
 		}
 
 		kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
+		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 
 		log.Debug("Creating New Controller")
-		c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory)
+		c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
 		go func() {
 			if err = c.Run(2, stopCh); err != nil {
 				log.Infof("Shutting down container version controller: %v", err)
