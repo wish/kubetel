@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	batchv1Client "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/client-go/tools/cache"
@@ -33,6 +34,8 @@ type Controller struct {
 	kcdcInformer cache.SharedIndexInformer
 	kcdcSynced   cache.InformerSynced
 
+	k8sIF k8sinformers.SharedInformerFactory
+
 	batchClient batchv1Client.BatchV1Interface
 
 	queue     workqueue.RateLimitingInterface
@@ -40,7 +43,7 @@ type Controller struct {
 }
 
 //NewController Creates a new deyployment controller
-func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory) (*Controller, error) {
+func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory) (*Controller, error) {
 
 	kcdInformer := customIF.Custom().V1().KCDs()
 	batchClient := k8sClient.BatchV1()
@@ -49,6 +52,7 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 		kcdcInformer: kcdInformer.Informer(),
 		customCS:     customCS,
 		kcdcSynced:   kcdInformer.Informer().HasSynced,
+		k8sIF:        k8sIF,
 		batchClient:  batchClient,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
 		kcdStates:    make(map[string]string),
@@ -158,11 +162,27 @@ func (c *Controller) processItem(key string) error {
 		for _, condition := range exJob.Status.Conditions {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
+				done := make(chan struct{})
+				jobInformer := c.k8sIF.Batch().V1().Jobs().Informer()
+				jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+					DeleteFunc: func(obj interface{}) {
+						job, ok := obj.(*batchv1.Job)
+						if !ok {
+							log.Errorf("Not a job object")
+							return
+						}
+						if job.Name == jobName {
+							close(done)
+						}
+					},
+				})
+				go jobInformer.Run(done)
+				log.Info("Deleting job")
 				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
 				if err != nil {
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)
 				}
-				time.Sleep(time.Second)
+				<-done
 			}
 		}
 	}
