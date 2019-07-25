@@ -150,7 +150,8 @@ func (c *Controller) processItem(key string) error {
 		return err
 	}
 
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	namespace, _, err := cache.SplitMetaNamespaceKey(key)
+	name := kcd.Spec.Selector["kcdapp"]
 	version := kcd.Status.CurrVersion
 	jobName := fmt.Sprintf("deploy-tracker-%s-%s", name, version)
 
@@ -162,6 +163,7 @@ func (c *Controller) processItem(key string) error {
 		for _, condition := range exJob.Status.Conditions {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
+				//C
 				done := make(chan struct{})
 				jobInformer := c.k8sIF.Batch().V1().Jobs().Informer()
 				jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
