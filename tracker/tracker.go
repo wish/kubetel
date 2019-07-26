@@ -36,14 +36,17 @@ import (
 
 //Tracker holds comonents needed to track a deployment
 type Tracker struct {
-	k8scInformer cache.SharedIndexInformer
-	kcdcInformer cache.SharedIndexInformer
+	deploymentcInformer cache.SharedIndexInformer
+	kcdcInformer        cache.SharedIndexInformer
 
 	k8scSynced cache.InformerSynced
 	kcdcSynced cache.InformerSynced
 
 	queue     chan DeployMessage
 	queueDone int32
+
+	informerList   []string
+	informerQueues map[string]chan DeployMessage
 
 	deploymentClient appsclientv1.DeploymentInterface
 
@@ -60,10 +63,23 @@ type Tracker struct {
 
 //NewTracker Creates a new tracker
 func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory) (*Tracker, error) {
+
+	//Each informer write to their own queue which are then merged
+	informerQueues := make(map[string]chan DeployMessage)
+
+	//Create all required Informer (Also add additional ones here)
 	kcdInformer := customIF.Custom().V1().KCDs()
-	k8sInformer := k8sIF.Apps().V1().Deployments()
+	deploymentInformer := k8sIF.Apps().V1().Deployments()
+
+	//If you add an informer add a key here, the order of the keys will be the order they are emptied
+	informerList := []string{"kcd", "deployment"}
+	for _, informer := range informerList {
+		informerQueues[informer] = make(chan DeployMessage, 100)
+	}
+
 	deploymentClient := k8sClient.AppsV1().Deployments(viper.GetString("tracker.namespace"))
 
+	//Set up message endpoint
 	var httpClient *http.Client
 	var rander *rand.Rand
 	var sqsClient *sqs.SQS
@@ -83,15 +99,18 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	}
 
 	t := &Tracker{
-		k8scInformer: k8sInformer.Informer(),
-		kcdcInformer: kcdInformer.Informer(),
+		deploymentcInformer: deploymentInformer.Informer(),
+		kcdcInformer:        kcdInformer.Informer(),
 
 		deploymentClient: deploymentClient,
 
-		k8scSynced: k8sInformer.Informer().HasSynced,
+		k8scSynced: deploymentInformer.Informer().HasSynced,
 		kcdcSynced: kcdInformer.Informer().HasSynced,
 
-		queue: make(chan DeployMessage, 200),
+		queue: make(chan DeployMessage, 100),
+
+		informerQueues: informerQueues,
+		informerList:   informerList,
 
 		clusterName:             viper.GetString("cluster"),
 		version:                 viper.GetString("tracker.version"),
@@ -103,7 +122,8 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		kcdStates:  make(map[string]string),
 	}
 
-	t.k8scInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	//Add event handlers to Informers
+	t.deploymentcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: t.trackDeployment,
 	})
 	t.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -122,6 +142,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	}
 	oldDeploy, ok := oldObj.(*appsv1.Deployment)
 	if !ok {
+		log.Errorf("Not a deploy object")
 		return
 	}
 	name, ok := oldDeploy.Labels["kcdapp"]
@@ -140,7 +161,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 				t.version,
 			},
 		}
-		t.enqueue(deployMessage)
+		t.enqueue(t.informerQueues["deployment"], deployMessage)
 	}
 
 }
@@ -158,15 +179,8 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 	log.Infof("KCD status updated: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
-		messages := t.deployFinishHandler(newKCD)
-		for _, m := range messages {
-			t.enqueue(m)
-		}
-		log.Info("Closing queue")
-		if atomic.LoadInt32(&t.queueDone) == int32(0) {
-			atomic.StoreInt32(&t.queueDone, int32(1))
-			close(t.queue)
-		}
+		t.kcdFinish(newKCD)
+
 	}
 }
 
@@ -179,20 +193,25 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 	podStatus := newKCD.Status.CurrStatus
 	log.Tracef("KCD with status: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+	//This happens when a tracker is spawned and the job is already finished (th is should not happen)
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
-		messages := t.deployFinishHandler(newKCD)
-		for _, m := range messages {
-			t.enqueue(m)
-		}
-		log.Info("Closing queue")
-		if atomic.LoadInt32(&t.queueDone) == int32(0) {
-			atomic.StoreInt32(&t.queueDone, int32(1))
-			close(t.queue)
+		t.kcdFinish(newKCD)
+	}
+}
+
+func (t *Tracker) kcdFinish(kcd *customv1.KCD) {
+	t.deployFinishHandler(kcd)
+	log.Info("Finished sending ")
+	//Do not double close the channel
+	if atomic.LoadInt32(&t.queueDone) == int32(0) {
+		atomic.StoreInt32(&t.queueDone, int32(1))
+		for _, informer := range t.informerList {
+			close(t.informerQueues[informer])
 		}
 	}
 }
 
-func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) (messages []DeployMessage) {
+func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 	status := kcd.Status.CurrStatus
 	success := false
 	if status == kcdutil.StatusSuccess {
@@ -204,6 +223,7 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) (messages []DeployMessa
 	if err != nil {
 		return
 	}
+	//For each Kubernets deployemnt tracked by a KCD send a status for each
 	for _, item := range deployments.Items {
 		deployment := item
 		deployMessage := DeployMessage{
@@ -217,53 +237,54 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) (messages []DeployMessa
 				success,
 			},
 		}
-		messages = append(messages, deployMessage)
+		t.enqueue(t.informerQueues["kcd"], deployMessage)
 	}
 
+	//Send Additional Information if the deployment fails
 	if !success {
-		failureMessages := t.deployFailureHandler(kcd)
-		if failureMessages != nil {
-			messages = append(messages, failureMessages...)
-		}
+		t.deployFailureHandler(kcd)
 	}
-	return messages
 }
 
-//Placeholder function to grab additional information uppon failure
-func (t *Tracker) deployFailureHandler(kcd *customv1.KCD) (messages []DeployMessage) {
+//Grab logs of pods in a failed deployment
+func (t *Tracker) deployFailureHandler(kcd *customv1.KCD) {
 	//TODO
-	return nil
+	return
 }
 
 //Adds a new job request into the work queue without
-func (t *Tracker) enqueue(m DeployMessage) {
-	for !t.attemptEnqeue(m) {
-		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+func (t *Tracker) enqueue(ichan chan DeployMessage, m DeployMessage) {
+	if atomic.LoadInt32(&t.queueDone) == int32(0) {
+		ichan <- m
 	}
 }
 
-func (t *Tracker) attemptEnqeue(m DeployMessage) bool {
-	if atomic.LoadInt32(&t.queueDone) == int32(0) {
-		select {
-		case t.queue <- m:
-			log.Trace("enqueued message")
-			return true
-		default:
-			return false
-		}
+//InformerQueueMerger empties the informer queues into the main work queue
+func (t *Tracker) InformerQueueMerger() {
+	var wg sync.WaitGroup
+	for _, informer := range t.informerList {
+		wg.Add(1)
+		c := t.informerQueues[informer]
+		go func() {
+			for m := range c {
+				t.queue <- m
+			}
+			wg.Done()
+		}()
 	}
-	return true
+	wg.Wait()
+	log.Info("closing main chan")
+	close(t.queue)
 }
 
 // Run starts the tracker
 func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.WaitGroup) error {
 	defer runtime.HandleCrash()
-	//defer t.queue.ShutDown()
 
 	log.Info("Starting Tracker")
-
+	go t.InformerQueueMerger()
 	go t.kcdcInformer.Run(stopCh)
-	go t.k8scInformer.Run(stopCh)
+	go t.deploymentcInformer.Run(stopCh)
 
 	if !cache.WaitForCacheSync(stopCh, t.kcdcSynced) {
 		return errors.New("Fail to wait for (secondary) cache sync")
@@ -304,7 +325,7 @@ func (t *Tracker) runWorker() {
 			go func() {
 				m.Retries++
 				time.Sleep(t.sleepDuration(m.Retries))
-				t.enqueue(m)
+				t.queue <- m
 			}()
 		}
 	}
