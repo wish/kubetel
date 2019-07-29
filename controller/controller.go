@@ -40,6 +40,8 @@ type Controller struct {
 
 	queue     workqueue.RateLimitingInterface
 	kcdStates map[string]string
+
+	endpointMap map[string]string
 }
 
 //NewController Creates a new deyployment controller
@@ -56,6 +58,7 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 		batchClient:  batchClient,
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
 		kcdStates:    make(map[string]string),
+		endpointMap:  viper.GetStringMapString("tracker.appendpoints"),
 	}
 
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -120,8 +123,7 @@ func (c *Controller) processNextItem() bool {
 
 	err := c.processItem(key.(string))
 
-	//TODO: move to config file
-	maxRetries := 2
+	maxRetries := viper.GetInt("controller.maxretries")
 
 	if err == nil {
 		c.queue.Forget(key)
@@ -155,6 +157,7 @@ func (c *Controller) processItem(key string) error {
 	version := kcd.Status.CurrVersion
 	jobName := fmt.Sprintf("deploy-tracker-%s-%s", name, version)
 
+	//Delete existing job if it already completed
 	jobsClient := c.batchClient.Jobs(namespace)
 	var gracePeriodSeconds int64
 	var propagationPolicy metav1.DeletionPropagation = metav1.DeletePropagationForeground
@@ -163,8 +166,8 @@ func (c *Controller) processItem(key string) error {
 		for _, condition := range exJob.Status.Conditions {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
-				//C
 				done := make(chan struct{})
+				//Use a shared job informer to check when the Job is deleted
 				jobInformer := c.k8sIF.Batch().V1().Jobs().Informer()
 				jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 					DeleteFunc: func(obj interface{}) {
@@ -173,6 +176,7 @@ func (c *Controller) processItem(key string) error {
 							log.Errorf("Not a job object")
 							return
 						}
+						//When job is completed close the channel this will end and the informer's goroutine and signal delete complete
 						if job.Name == jobName {
 							close(done)
 						}
@@ -184,9 +188,16 @@ func (c *Controller) processItem(key string) error {
 				if err != nil {
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)
 				}
+				//This will block until the done channel is closed by the job informer
 				<-done
 			}
 		}
+	}
+
+	//Check if there is a specific endpoint for the app else use default
+	var endpoint string
+	if endpoint, ok = c.endpointMap[name]; !ok {
+		endpoint = viper.GetString("tracker.endpoint")
 	}
 
 	args := []string{"tracker",
@@ -198,7 +209,7 @@ func (c *Controller) processItem(key string) error {
 		fmt.Sprintf("--tracker-version=%s", version),
 		fmt.Sprintf("--tracker-namespace=%s", namespace),
 		fmt.Sprintf("--tracker-endpointtype=%s", viper.GetString("tracker.endpointtype")),
-		fmt.Sprintf("--tracker-endpoint=%s", viper.GetString("tracker.endpoint")),
+		fmt.Sprintf("--tracker-endpoint=%s", endpoint),
 		fmt.Sprintf("--tracker-maxretries=%d", viper.GetInt("tracker.maxretries")),
 		fmt.Sprintf("--tracker-workercount=%d", viper.GetInt("tracker.workercount")),
 		fmt.Sprintf("--server-port=%d", viper.GetInt("server.port")),
@@ -279,6 +290,7 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing && c.kcdStates[newKCD.Name] != kcdutil.StatusProgressing {
 		c.enqueue(newObj)
 	}
+
 	c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 
 }

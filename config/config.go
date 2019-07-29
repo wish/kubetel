@@ -31,11 +31,12 @@ type ControllerConfig struct {
 
 //TrackerConfig for config file structure
 type TrackerConfig struct {
-	MaxRetries   int    `mapstructure:"maxretries"`
-	WorkerCount  int    `mapstructure:"workercount"`
-	Version      string `mapstructure:"version"`
-	KCDApp       string `mapstructure:"kcd"`
-	Namespace    string `mapstructure:"namespace"`
-	Endpoint     string `mapstructure:"endpoint"`
-	Endpointtype string `mapstructure:"endpointtype"`
+	MaxRetries   int               `mapstructure:"maxretries"`
+	WorkerCount  int               `mapstructure:"workercount"`
+	Version      string            `mapstructure:"version"`
+	KCDApp       string            `mapstructure:"kcd"`
+	Namespace    string            `mapstructure:"namespace"`
+	Endpoint     string            `mapstructure:"endpoint"`
+	Endpointtype string            `mapstructure:"endpointtype"`
+	AppEndpoints map[string]string `mapstructure:"appendpoints"` //This map from a app name to an endpoint will allow you to overwirte the endpoint for certain apps
 }
