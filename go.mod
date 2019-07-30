@@ -14,7 +14,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.4.0
 	goji.io v2.0.2+incompatible
-	k8s.io/api v0.0.0-20190626000116-b178a738ed00
-	k8s.io/apimachinery v0.0.0-20190624085041-961b39a1baa0
-	k8s.io/client-go v0.0.0-20190626045420-1ec4b74c7bda
+	k8s.io/api v0.0.0-20181126191646-05ef6506a18a //kubernetes-1.10.11
+	k8s.io/apimachinery v0.0.0-20181126123303-08e1968f78a1 //kubernetes-1.10.11
+	k8s.io/client-go v0.0.0-20181126192138-ff0d167d8bcb //kubernetes-1.10.11
 )
