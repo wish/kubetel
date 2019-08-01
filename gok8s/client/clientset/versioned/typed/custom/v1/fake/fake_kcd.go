@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
+	custom_v1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -39,20 +39,20 @@ var kcdsResource = schema.GroupVersionResource{Group: "custom.k8s.io", Version: 
 var kcdsKind = schema.GroupVersionKind{Group: "custom.k8s.io", Version: "v1", Kind: "KCD"}
 
 // Get takes name of the kCD, and returns the corresponding kCD object, and an error if there is any.
-func (c *FakeKCDs) Get(name string, options v1.GetOptions) (result *customv1.KCD, err error) {
+func (c *FakeKCDs) Get(name string, options v1.GetOptions) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(kcdsResource, c.ns, name), &customv1.KCD{})
+		Invokes(testing.NewGetAction(kcdsResource, c.ns, name), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customv1.KCD), err
+	return obj.(*custom_v1.KCD), err
 }
 
 // List takes label and field selectors, and returns the list of KCDs that match those selectors.
-func (c *FakeKCDs) List(opts v1.ListOptions) (result *customv1.KCDList, err error) {
+func (c *FakeKCDs) List(opts v1.ListOptions) (result *custom_v1.KCDList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(kcdsResource, kcdsKind, c.ns, opts), &customv1.KCDList{})
+		Invokes(testing.NewListAction(kcdsResource, kcdsKind, c.ns, opts), &custom_v1.KCDList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeKCDs) List(opts v1.ListOptions) (result *customv1.KCDList, err erro
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &customv1.KCDList{ListMeta: obj.(*customv1.KCDList).ListMeta}
-	for _, item := range obj.(*customv1.KCDList).Items {
+	list := &custom_v1.KCDList{}
+	for _, item := range obj.(*custom_v1.KCDList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,31 +79,31 @@ func (c *FakeKCDs) Watch(opts v1.ListOptions) (watch.Interface, error) {
 }
 
 // Create takes the representation of a kCD and creates it.  Returns the server's representation of the kCD, and an error, if there is any.
-func (c *FakeKCDs) Create(kCD *customv1.KCD) (result *customv1.KCD, err error) {
+func (c *FakeKCDs) Create(kCD *custom_v1.KCD) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(kcdsResource, c.ns, kCD), &customv1.KCD{})
+		Invokes(testing.NewCreateAction(kcdsResource, c.ns, kCD), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customv1.KCD), err
+	return obj.(*custom_v1.KCD), err
 }
 
 // Update takes the representation of a kCD and updates it. Returns the server's representation of the kCD, and an error, if there is any.
-func (c *FakeKCDs) Update(kCD *customv1.KCD) (result *customv1.KCD, err error) {
+func (c *FakeKCDs) Update(kCD *custom_v1.KCD) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(kcdsResource, c.ns, kCD), &customv1.KCD{})
+		Invokes(testing.NewUpdateAction(kcdsResource, c.ns, kCD), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customv1.KCD), err
+	return obj.(*custom_v1.KCD), err
 }
 
 // Delete takes name of the kCD and deletes it. Returns an error if one occurs.
 func (c *FakeKCDs) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(kcdsResource, c.ns, name), &customv1.KCD{})
+		Invokes(testing.NewDeleteAction(kcdsResource, c.ns, name), &custom_v1.KCD{})
 
 	return err
 }
@@ -112,17 +112,17 @@ func (c *FakeKCDs) Delete(name string, options *v1.DeleteOptions) error {
 func (c *FakeKCDs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(kcdsResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &customv1.KCDList{})
+	_, err := c.Fake.Invokes(action, &custom_v1.KCDList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched kCD.
-func (c *FakeKCDs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *customv1.KCD, err error) {
+func (c *FakeKCDs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *custom_v1.KCD, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(kcdsResource, c.ns, name, pt, data, subresources...), &customv1.KCD{})
+		Invokes(testing.NewPatchSubresourceAction(kcdsResource, c.ns, name, data, subresources...), &custom_v1.KCD{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*customv1.KCD), err
+	return obj.(*custom_v1.KCD), err
 }

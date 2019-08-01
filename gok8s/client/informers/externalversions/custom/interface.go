@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package custom
 
 import (
-	internalinterfaces "github.com/wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
 	v1 "github.com/wish/kubetel/gok8s/client/informers/externalversions/custom/v1"
+	internalinterfaces "github.com/wish/kubetel/gok8s/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.
