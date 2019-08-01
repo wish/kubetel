@@ -59,7 +59,7 @@ spec:
 ---
 apiVersion: v1
 data:
-  kubetel.yaml: "\"cluster\": \"app-05-dev.k8s.local\"\n\"controller\": \n  \"maxretries\": 2\n  \"workercount\": 2\n\"image\": \"951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0\"\n\"log\": \n  \"level\": \"trace\"\n\"namespace\": \"kube-system\"\n\"region\": \"us-west-1\"\n\"server\": \n  \"port\": 8081\n\"tracker\": \n  \"endpoint\": \"https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-dev\"\n  \"endpointtype\": \"sqs\"\n  \"maxretries\": 2\n  \"workercount\": 2"
+  kubetel.yaml: "\"cluster\": \"app-05-dev.k8s.local\"\n\"controller\": \n  \"maxretries\": 2\n  \"workercount\": 2\n\"image\": \"951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0\"\n\"log\": \n  \"level\": \"trace\"\n\"namespace\": \"kube-system\"\n\"sqsregion\": \"us-west-1\"\n\"server\": \n  \"port\": 8081\n\"tracker\": \n  \"endpoint\": \"https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-dev\"\n  \"endpointtype\": \"sqs\"\n  \"maxretries\": 2\n  \"workercount\": 2"
 kind: ConfigMap
 metadata:
   name: kubetel-config

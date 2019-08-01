@@ -62,7 +62,7 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVar(&useCfg, "use-config", true, "Disable config file")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./kubetel.json)")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "region", "", "aws region for sqs")
+	rootCmd.PersistentFlags().String("sqsregion", "", "aws region for sqs")
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().String("log", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
@@ -78,8 +78,8 @@ func init() {
 		fmt.Printf("Error binding viper to nodeSelector %s", err)
 		os.Exit(1)
 	}
-	if err := viper.BindPFlag("region", rootCmd.PersistentFlags().Lookup("region")); err != nil {
-		fmt.Printf("Error binding viper to region %s", err)
+	if err := viper.BindPFlag("sqsregion", rootCmd.PersistentFlags().Lookup("sqsregion")); err != nil {
+		fmt.Printf("Error binding viper to sqsregion %s", err)
 		os.Exit(1)
 	}
 	if err := viper.BindPFlag("cluster", rootCmd.PersistentFlags().Lookup("cluster")); err != nil {

@@ -9,7 +9,7 @@ type KubeDeployConfig struct {
 	Image        string            `mapstructure:"image"`
 	Namespace    string            `mapstructure:"namespace"`
 	Cluster      string            `mapstructure:"cluster"`
-	Region       string            `mapstructure:"region"`
+	SQSRegion    string            `mapstructure:"sqsregion"`
 	nodeSelector map[string]string `mapstructure:"nodeselector"`
 }
 
