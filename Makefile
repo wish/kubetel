@@ -1,4 +1,4 @@
-PKGS 		:= $(shell go list ./...)
+PKGS 		:= $(shell go list ./... | grep -v gok8s/client)
 GOFILES_BUILD   := $(shell find . -type f -iname "*.go" | grep -v '^.test\/')
 
 .PHONY: help
