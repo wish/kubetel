@@ -202,7 +202,7 @@ func (c *Controller) processItem(key string) error {
 
 	args := []string{"tracker",
 		fmt.Sprintf("--cluster=%s", viper.GetString("cluster")),
-		fmt.Sprintf("--region=%s", viper.GetString("region")),
+		fmt.Sprintf("--sqsregion=%s", viper.GetString("sqsregion")),
 		fmt.Sprintf("--log=%s", viper.GetString("log.level")),
 		fmt.Sprintf("--use-config=false"),
 		fmt.Sprintf("--tracker-kcdapp=%s", kcd.Spec.Selector["kcdapp"]),

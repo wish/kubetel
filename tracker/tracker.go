@@ -93,7 +93,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		}
 	case "sqs":
 		sess := session.Must(session.NewSession(&aws.Config{
-			Region: aws.String(viper.GetString("region")),
+			Region: aws.String(viper.GetString("sqsregion")),
 		}))
 		sqsClient = sqs.New(sess)
 	}
