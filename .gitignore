@@ -1,2 +1,3 @@
 kubetel
 vendor/
+*.out
