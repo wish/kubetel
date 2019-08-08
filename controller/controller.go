@@ -2,7 +2,9 @@ package controller
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/viper"
@@ -167,6 +169,7 @@ func (c *Controller) processItem(key string) error {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
 				done := make(chan struct{})
+				var lock int32
 				//Use a shared job informer to check when the Job is deleted
 				jobInformer := c.k8sIF.Batch().V1().Jobs().Informer()
 				jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -178,12 +181,27 @@ func (c *Controller) processItem(key string) error {
 						}
 						//When job is completed close the channel this will end and the informer's goroutine and signal delete complete
 						if job.Name == jobName {
-							close(done)
+							if atomic.LoadInt32(&lock) == int32(0) {
+								atomic.StoreInt32(&lock, int32(1))
+								close(done)
+							}
+
 						}
 					},
 				})
-				go jobInformer.Run(done)
-				log.Info("Deleting job")
+				//Closing a shared informer in testing does not seem to use a dummyController and when it is stopped
+				//Also stops the k8sController, which does not happen in an actual controller.
+				//This causes issues as we still need the k8sController but not the informer we want to close
+				//TEMP FIX: do not close the informer in testing
+				if strings.HasSuffix(os.Args[0], ".test") {
+					go jobInformer.Run(nil)
+				} else {
+					go jobInformer.Run(done)
+				}
+				if !cache.WaitForCacheSync(done, jobInformer.HasSynced) {
+					log.Errorf("Fail to wait for (secondary) cache sync")
+				}
+				log.Infof("Deleting job %s", jobName)
 				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
 				if err != nil {
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)

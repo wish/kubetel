@@ -1,4 +1,4 @@
-PKGS 		:= $(shell go list ./... | grep -v gok8s/client)
+PKGS 		:= $(shell go list ./... | grep -v gok8s)
 GOFILES_BUILD   := $(shell find . -type f -iname "*.go" | grep -v '^.test\/')
 
 .PHONY: help
@@ -17,8 +17,13 @@ lint: ## Runs linter
 vet: ## Runs go vet
 	@go vet ${PKGS}
 
+.PHONY: test
+test: ## Runs test
+	@go test ${PKGS} -cover -race -count=1
+
 kubetel: $(GOFILES_BUILD)
 	go build .
 
 .PHONY: build
 build: kubetel ## Builds kubetel
+

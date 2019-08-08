@@ -26,6 +26,7 @@ jobs:
       script:
         - env GO111MODULE=on make lint
         - env GO111MODULE=on make vet
+        - env GO111MODULE=on make test
         - docker build -t kubetel:travis .
         - kind load docker-image kubetel:travis
         - kubectl apply -f deploy/kind/kind-ci-deploy.yaml --validate=false
