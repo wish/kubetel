@@ -23,10 +23,18 @@ import (
 )
 
 func TestControllerUpdate(t *testing.T) {
-	kcd1 := generateTestingKCD("1", "testing", "1111111", "Success") //
+	kcd1 := generateTestingKCD("1", "testing", "version1", "Success")
+	kcd2 := generateTestingKCD("2", "testing", "version1", "Success")
+	kcd3 := generateTestingKCD("3", "testing", "version1", "Success")
+	kcd4 := generateTestingKCD("4", "testing", "version1", "Success")
+	kcd5 := generateTestingKCD("5", "testing", "version1", "Success")
 
 	customObjs := []runtime.Object{
 		kcd1,
+		kcd2,
+		kcd3,
+		kcd4,
+		kcd5,
 	}
 
 	k8sObjs := []runtime.Object{}
@@ -37,27 +45,22 @@ func TestControllerUpdate(t *testing.T) {
 	kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 	k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 
-	stopController := make(chan struct{})
-
 	stopChan := make(chan struct{})
 
 	c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
 	go func() {
-		if err := c.Run(1, stopController); err != nil {
+		if err := c.Run(1, stopChan); err != nil {
 			t.Fatal("Failed to start controller: ", err)
 		}
 	}()
 
-	k8sInformerFactory.Start(stopChan)
-
 	//Ensure the Add is read first
 	time.Sleep(50 * time.Millisecond)
-
-	stopCh := make(chan struct{})
-	k8sInformerFactory.Start(stopCh)
-	kcd1.Status.CurrStatus = "Progressing"
-	kcd1.Status.CurrVersion = "2222222"
-	customClient.CustomV1().KCDs("testing").Update(kcd1)
+	updateKCD(kcd1, customClient, "Progressing", "version2")
+	updateKCD(kcd2, customClient, "Progressing", "version2")
+	updateKCD(kcd3, customClient, "Progressing", "version2")
+	updateKCD(kcd4, customClient, "Progressing", "version2")
+	updateKCD(kcd5, customClient, "Progressing", "version2")
 
 	time.Sleep(50 * time.Millisecond)
 	customClient.CustomV1().KCDs("testing").Update(kcd1)
@@ -72,25 +75,34 @@ func TestControllerUpdate(t *testing.T) {
 		},
 	})
 
-	go jobInformerTest.Run(stopChan)
-	cache.WaitForCacheSync(stopChan, jobInformerTest.HasSynced)
-
-	select {
-	case job := <-jobs:
-		t.Logf("Got job from channel: %s/%s", job.Namespace, job.Name)
-		b, _ := json.Marshal(job)
-		fmt.Println(string(b))
-	case <-time.After(wait.ForeverTestTimeout):
-		t.Error("Informer did not get the added pod")
+	for i := 0; i < 5; i++ {
+		select {
+		case job := <-jobs:
+			t.Logf("Got job from channel: %s/%s", job.Namespace, job.Name)
+			b, _ := json.Marshal(job)
+			fmt.Println(string(b))
+		case <-time.After(wait.ForeverTestTimeout):
+			t.Error("Informer did not get the added pod")
+		}
 	}
-
+	select {
+	case <-jobs:
+		t.Error("Too many jobs expected")
+	default:
+		close(stopChan)
+	}
 }
 
+func updateKCD(kcd *customv1.KCD, customClient *customclientfake.Clientset, status, version string) {
+	kcd.Status.CurrStatus = status
+	kcd.Status.CurrVersion = version
+	customClient.CustomV1().KCDs("testing").Update(kcd)
+}
 func TestControllerInitilization(t *testing.T) {
 
-	kcd1 := generateTestingKCD("1", "testing", "1111111", "Success")     //Case 1 Finished Deploymnet, No Job to be made
-	kcd2 := generateTestingKCD("2", "testing", "2222222", "Failed")      // Case 2  Finished Deploymnet, No job to be made
-	kcd3 := generateTestingKCD("3", "testing", "3333333", "Progressing") //Case 3 Propgressing Deplyment (New Version), New Job Expected
+	kcd1 := generateTestingKCD("1", "testing", "version1", "Success")
+	kcd2 := generateTestingKCD("2", "testing", "version1", "Failed")
+	kcd3 := generateTestingKCD("3", "testing", "version1", "Progressing")
 
 	customObjs := []runtime.Object{
 		kcd1,
@@ -106,17 +118,14 @@ func TestControllerInitilization(t *testing.T) {
 	kcdcInformerFactory := informer.NewSharedInformerFactory(customClient, time.Second*30)
 	k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 
-	stopController := make(chan struct{})
+	stopChan := make(chan struct{})
 
 	c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
 	go func() {
-		if err := c.Run(2, stopController); err != nil {
+		if err := c.Run(2, stopChan); err != nil {
 			t.Fatal("Failed to start controller: ", err)
 		}
 	}()
-
-	//time.Sleep(5 * time.Second)
-	stopChan := make(chan struct{})
 
 	jobs := make(chan *batchv1.Job, 3)
 	jobInformerTest := k8sInformerFactory.Batch().V1().Jobs().Informer()
@@ -128,8 +137,6 @@ func TestControllerInitilization(t *testing.T) {
 		},
 	})
 
-	k8sInformerFactory.Start(stopChan)
-	cache.WaitForCacheSync(stopChan, jobInformerTest.HasSynced)
 	select {
 	case job := <-jobs:
 		t.Logf("Got job from channel: %s/%s", job.Namespace, job.Name)
@@ -138,30 +145,38 @@ func TestControllerInitilization(t *testing.T) {
 	case <-time.After(wait.ForeverTestTimeout):
 		t.Error("Informer did not get the added pod")
 	}
-
-	close(stopChan)
-	close(stopController)
-
 }
 
-//Weird Bug Closing the shared job informer
-//Then calling create job causes panic in the fake controller sometimes
-
 func TestControllerInitilizationRollback(t *testing.T) {
-	kcd4 := generateTestingKCD("4", "testing", "4444444", "Progressing") //Case 4 Propgressing Deplyment (Rollback) , New Job Expected
-	job4 := generateTestingJob("4", "testing", "4444444", "Complete")
-
-	kcd5 := generateTestingKCD("5", "testing", "5555555", "Progressing") //Case 5 Propgressing Deplyment (Rollback) , New Job Expected
-	job5 := generateTestingJob("5", "testing", "5555555", "Failed")
+	kcd1 := generateTestingKCD("1", "testing", "version1", "Progressing")
+	job1 := generateTestingJob("1", "testing", "version1", "Complete")
+	kcd2 := generateTestingKCD("2", "testing", "version1", "Progressing")
+	job2 := generateTestingJob("2", "testing", "version1", "Complete")
+	kcd3 := generateTestingKCD("3", "testing", "version1", "Progressing")
+	job3 := generateTestingJob("3", "testing", "version1", "Complete")
+	kcd4 := generateTestingKCD("4", "testing", "version1", "Progressing")
+	job4 := generateTestingJob("4", "testing", "version1", "Complete")
+	kcd5 := generateTestingKCD("5", "testing", "version1", "Progressing")
+	job5 := generateTestingJob("5", "testing", "version1", "Complete")
+	kcd6 := generateTestingKCD("6", "testing", "version1", "Progressing")
+	job6 := generateTestingJob("6", "testing", "version1", "Failed")
 
 	customObjs := []runtime.Object{
+		kcd1,
+		kcd2,
+		kcd3,
 		kcd4,
 		kcd5,
+		kcd6,
 	}
 
 	k8sObjs := []runtime.Object{
+		job1,
+		job2,
+		job3,
 		job4,
 		job5,
+		job6,
 	}
 
 	k8sClient := k8sclientfake.NewSimpleClientset(k8sObjs...)
@@ -174,11 +189,10 @@ func TestControllerInitilizationRollback(t *testing.T) {
 
 	c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
 	go func() {
-		if err := c.Run(1, nil); err != nil {
+		if err := c.Run(2, stopCh); err != nil {
 			t.Fatal("Failed to start controller: ", err)
 		}
 	}()
-	k8sInformerFactory.Start(stopCh)
 
 	jobs := make(chan *batchv1.Job, 3)
 	jobInformerTest := k8sInformerFactory.Batch().V1().Jobs().Informer()
@@ -192,7 +206,7 @@ func TestControllerInitilizationRollback(t *testing.T) {
 	cache.WaitForCacheSync(stopCh, jobInformerTest.HasSynced)
 
 	//We should see 2 new jobs added to replace the existing ones
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 12; i++ {
 		select {
 		case job := <-jobs:
 			t.Logf("Got job from channel: %s/%s", job.Namespace, job.Name)
@@ -202,7 +216,6 @@ func TestControllerInitilizationRollback(t *testing.T) {
 			t.Error("Informer did not get the added pod")
 		}
 	}
-	close(stopCh)
 }
 
 func generateTestingKCD(postfix, namespace, version, status string) *customv1.KCD {
