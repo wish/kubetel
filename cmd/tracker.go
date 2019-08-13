@@ -55,7 +55,17 @@ var deployTracker = &cobra.Command{
 		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil) //May need additional filtering
 		kcdcInformerFactory := informer.NewFilteredSharedInformerFactory(customClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 
-		t, _ := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory)
+		c := tracker.Config{
+			Namespace:            viper.GetString("tracker.namespace"),
+			SQSregion:            viper.GetString("sqsregion"),
+			Endpointendpointtype: viper.GetString("tracker.endpointtype"),
+			Cluster:              viper.GetString("cluster"),
+			Version:              viper.GetString("tracker.version"),
+			Endpoint:             viper.GetString("tracker.endpoint"),
+			KCDapp:               viper.GetString("tracker.kcdapp"),
+		}
+
+		t, _ := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory, c)
 		go func() {
 			if err = t.Run(viper.GetInt("tracker.workercount"), stopCh, &waitgroup); err != nil {
 				log.Infof("Shutting down tracker: %v", err)

@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 //Tracker holds comonents needed to track a deployment
@@ -59,10 +58,26 @@ type Tracker struct {
 	version                 string
 	deployStatusEndpointAPI string
 	kcdStates               map[string]string
+
+	namespace            string
+	sqsregion            string
+	endpointendpointtype string
+	kcdapp               string
+}
+
+//Config holds cracker configuration data
+type Config struct {
+	Namespace            string
+	SQSregion            string
+	Endpointendpointtype string
+	Cluster              string
+	Version              string
+	Endpoint             string
+	KCDapp               string
 }
 
 //NewTracker Creates a new tracker
-func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory) (*Tracker, error) {
+func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory, c Config) (*Tracker, error) {
 
 	//Each informer write to their own queue which are then merged
 	informerQueues := make(map[string]chan DeployMessage)
@@ -77,15 +92,15 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		informerQueues[informer] = make(chan DeployMessage, 100)
 	}
 
-	deploymentClient := k8sClient.AppsV1().Deployments(viper.GetString("tracker.namespace"))
+	deploymentClient := k8sClient.AppsV1().Deployments(c.Namespace)
 
 	//Set up message endpoint
 	var httpClient *http.Client
 	var rander *rand.Rand
 	var sqsClient *sqs.SQS
-	switch endtype := viper.GetString("tracker.endpointtype"); endtype {
+	switch c.Endpointendpointtype {
 	case "http":
-		if viper.GetString("tracker.endpoint") != "" {
+		if c.Endpoint != "" {
 			httpClient = &http.Client{
 				Timeout: time.Duration(5 * time.Second),
 			}
@@ -93,7 +108,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		}
 	case "sqs":
 		sess := session.Must(session.NewSession(&aws.Config{
-			Region: aws.String(viper.GetString("sqsregion")),
+			Region: aws.String(c.SQSregion),
 		}))
 		sqsClient = sqs.New(sess)
 	}
@@ -112,9 +127,13 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		informerQueues: informerQueues,
 		informerList:   informerList,
 
-		clusterName:             viper.GetString("cluster"),
-		version:                 viper.GetString("tracker.version"),
-		deployStatusEndpointAPI: viper.GetString("tracker.endpoint"),
+		clusterName:             c.Cluster,
+		version:                 c.Version,
+		deployStatusEndpointAPI: c.Endpoint,
+		namespace:               c.Namespace,
+		sqsregion:               c.SQSregion,
+		endpointendpointtype:    c.Endpointendpointtype,
+		kcdapp:                  c.KCDapp,
 
 		httpClient: httpClient,
 		rand:       rander,
@@ -149,7 +168,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	if !ok {
 		return
 	}
-	if name == viper.GetString("tracker.kcdapp") {
+	if name == t.kcdapp {
 		log.Infof("Deployment updated: %s", name)
 		deployMessage := DeployMessage{
 			Type:    "deployStatus",
@@ -178,9 +197,12 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 	podStatus := newKCD.Status.CurrStatus
 	log.Infof("KCD status updated: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
+	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
+		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
+		return
+	}
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.kcdFinish(newKCD)
-
 	}
 }
 
@@ -190,10 +212,15 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 		log.Errorf("Not a KCD object")
 		return
 	}
+
 	podStatus := newKCD.Status.CurrStatus
 	log.Tracef("KCD with status: %s", podStatus)
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
-	//This happens when a tracker is spawned and the job is already finished (th is should not happen)
+	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
+		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
+		return
+	}
+	//This happens when a tracker is spawned and the job is already finished (this should not happen)
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.kcdFinish(newKCD)
 	}
@@ -263,8 +290,8 @@ func (t *Tracker) enqueue(ichan chan DeployMessage, m DeployMessage) {
 func (t *Tracker) InformerQueueMerger() {
 	var wg sync.WaitGroup
 	for _, informer := range t.informerList {
-		wg.Add(1)
 		c := t.informerQueues[informer]
+		wg.Add(1)
 		go func() {
 			for m := range c {
 				t.queue <- m
@@ -322,20 +349,18 @@ func (t *Tracker) runWorker() {
 		log.Info("Dequeue Message")
 		success := t.processNextItem(m)
 		if !success {
-			go func() {
-				m.Retries++
-				time.Sleep(t.sleepDuration(m.Retries))
-				t.queue <- m
-			}()
+			m.Retries++
+			time.Sleep(t.sleepDuration(m.Retries))
+			t.queue <- m
 		}
 	}
 }
 
 func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
-	switch endtype := viper.GetString("tracker.endpointtype"); endtype {
+	switch endtype := t.endpointendpointtype; endtype {
 	case "http":
 		switch messageType := data.Type; messageType {
-		case "deployFinish":
+		case "deployFinished":
 			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), data)
 		case "deployStatus":
 			success = t.sendDeploymentEventHTTP(t.deployStatusEndpointAPI, data)
@@ -364,9 +389,9 @@ func (t *Tracker) sendDeploymentEventHTTP(endpoint string, m DeployMessage) bool
 		return false
 	}
 	if resp.StatusCode >= 400 {
-		var result map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&result)
-		log.Infof("response: %v", result)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		log.Infof("Failed to send with response: %v", buf.String())
 		resp.Body.Close()
 		return false
 	}
@@ -383,7 +408,8 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 		log.Errorf("Failed marshalling the deployment object: %v", err)
 		return false
 	}
-	log.Tracef("Sending: deploy message")
+	log.Tracef("Sending: deploy message %s", messageType)
+	log.Tracef("BODY: %s", string(jsonData[:]))
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageAttributes: map[string]*sqs.MessageAttributeValue{
 			"Type": &sqs.MessageAttributeValue{
