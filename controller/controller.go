@@ -2,9 +2,8 @@ package controller
 
 import (
 	"fmt"
-	"os"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -36,6 +35,9 @@ type Controller struct {
 	kcdcInformer cache.SharedIndexInformer
 	kcdcSynced   cache.InformerSynced
 
+	jobcInformer cache.SharedIndexInformer
+	jobcSynced   cache.InformerSynced
+
 	k8sIF k8sinformers.SharedInformerFactory
 
 	batchClient batchv1Client.BatchV1Interface
@@ -44,30 +46,45 @@ type Controller struct {
 	kcdStates map[string]string
 
 	endpointMap map[string]string
+
+	jobDeleteStatus map[string]chan int
+	sync.Mutex
 }
 
 //NewController Creates a new deyployment controller
 func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory) (*Controller, error) {
 
 	kcdInformer := customIF.Custom().V1().KCDs()
+	jobInformer := k8sIF.Batch().V1().Jobs()
 	batchClient := k8sClient.BatchV1()
 
 	c := &Controller{
-		kcdcInformer: kcdInformer.Informer(),
-		customCS:     customCS,
-		kcdcSynced:   kcdInformer.Informer().HasSynced,
-		k8sIF:        k8sIF,
-		batchClient:  batchClient,
-		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
-		kcdStates:    make(map[string]string),
-		endpointMap:  viper.GetStringMapString("tracker.appendpoints"),
+		kcdcInformer:    kcdInformer.Informer(),
+		jobcInformer:    jobInformer.Informer(),
+		customCS:        customCS,
+		kcdcSynced:      kcdInformer.Informer().HasSynced,
+		jobcSynced:      jobInformer.Informer().HasSynced,
+		jobDeleteStatus: make(map[string](chan int)),
+		k8sIF:           k8sIF,
+		batchClient:     batchClient,
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "kubedeployController"),
+		kcdStates:       make(map[string]string),
+		endpointMap:     viper.GetStringMapString("tracker.appendpoints"),
 	}
+
+	//go jobInformer.Run(done)
+	//if !cache.WaitForCacheSync(done, jobInformer.HasSynced) {
+	//	log.Errorf("Fail to wait for (secondary) cache sync")
+	//}
 
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.trackAddKcd,
 		UpdateFunc: c.trackKcd,
 	})
 
+	c.jobcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: c.deleteJob,
+	})
 	return c, nil
 }
 
@@ -92,8 +109,12 @@ func (c *Controller) Run(threadCount int, stopCh <-chan struct{}) error {
 	log.Info("Starting Controller")
 
 	go c.kcdcInformer.Run(stopCh)
+	go c.jobcInformer.Run(stopCh)
 
 	if !cache.WaitForCacheSync(stopCh, c.kcdcSynced) {
+		return errors.New("Fail to wait for (secondary) cache sync")
+	}
+	if !cache.WaitForCacheSync(stopCh, c.jobcSynced) {
 		return errors.New("Fail to wait for (secondary) cache sync")
 	}
 
@@ -153,6 +174,7 @@ func (c *Controller) processItem(key string) error {
 	if !ok {
 		return err
 	}
+	log.Infof("Deququing KCD: %s ", kcd.Name)
 
 	namespace, _, err := cache.SplitMetaNamespaceKey(key)
 	name := kcd.Spec.Selector["kcdapp"]
@@ -168,46 +190,19 @@ func (c *Controller) processItem(key string) error {
 		for _, condition := range exJob.Status.Conditions {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
-				done := make(chan struct{})
-				var lock int32
-				//Use a shared job informer to check when the Job is deleted
-				jobInformer := c.k8sIF.Batch().V1().Jobs().Informer()
-				jobInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-					DeleteFunc: func(obj interface{}) {
-						job, ok := obj.(*batchv1.Job)
-						if !ok {
-							log.Errorf("Not a job object")
-							return
-						}
-						//When job is completed close the channel this will end and the informer's goroutine and signal delete complete
-						if job.Name == jobName {
-							if atomic.LoadInt32(&lock) == int32(0) {
-								atomic.StoreInt32(&lock, int32(1))
-								close(done)
-							}
-
-						}
-					},
-				})
-				//Closing a shared informer in testing does not seem to use a dummyController and when it is stopped
-				//Also stops the k8sController, which does not happen in an actual controller.
-				//This causes issues as we still need the k8sController but not the informer we want to close
-				//TEMP FIX: do not close the informer in testing
-				if strings.HasSuffix(os.Args[0], ".test") {
-					go jobInformer.Run(nil)
-				} else {
-					go jobInformer.Run(done)
-				}
-				if !cache.WaitForCacheSync(done, jobInformer.HasSynced) {
-					log.Errorf("Fail to wait for (secondary) cache sync")
-				}
-				log.Infof("Deleting job %s", jobName)
+				jobDeleted := make(chan int)
+				c.Lock()
+				c.jobDeleteStatus[jobName] = jobDeleted
+				c.Unlock()
 				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
 				if err != nil {
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)
 				}
-				//This will block until the done channel is closed by the job informer
-				<-done
+				<-jobDeleted
+				c.Lock()
+				delete(c.jobDeleteStatus, jobName)
+				c.Unlock()
+				close(jobDeleted)
 			}
 		}
 	}
@@ -323,4 +318,19 @@ func (c *Controller) trackAddKcd(newObj interface{}) {
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing {
 		c.enqueue(newObj)
 	}
+}
+
+func (c *Controller) deleteJob(obj interface{}) {
+	job, ok := obj.(*batchv1.Job)
+	if !ok {
+		log.Errorf("Not a job object")
+		return
+	}
+	var ch chan int
+	c.Lock()
+	ch, ok = c.jobDeleteStatus[job.Name]
+	if ok {
+		ch <- 1
+	}
+	c.Unlock()
 }
