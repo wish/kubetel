@@ -41,8 +41,9 @@ type Tracker struct {
 	k8scSynced cache.InformerSynced
 	kcdcSynced cache.InformerSynced
 
-	queue     chan DeployMessage
-	queueDone int32
+	deployMessageQueue     chan DeployMessage
+	deployMessageQueueDone int32
+	deployMessageQueueWG   sync.WaitGroup
 
 	informerList   []string
 	informerQueues map[string]chan DeployMessage
@@ -98,6 +99,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	var httpClient *http.Client
 	var rander *rand.Rand
 	var sqsClient *sqs.SQS
+
 	switch c.Endpointendpointtype {
 	case "http":
 		if c.Endpoint != "" {
@@ -122,7 +124,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		k8scSynced: deploymentInformer.Informer().HasSynced,
 		kcdcSynced: kcdInformer.Informer().HasSynced,
 
-		queue: make(chan DeployMessage, 100),
+		deployMessageQueue: make(chan DeployMessage, 100),
 
 		informerQueues: informerQueues,
 		informerList:   informerList,
@@ -152,7 +154,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	return t, nil
 }
 
-//This function can be eventully improved to provide more useful information
+//If the given Object is a deploymnet that belongs to the KCD being tracked send deploy message
 func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	newDeploy, ok := newObj.(*appsv1.Deployment)
 	if !ok {
@@ -194,13 +196,17 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 	if newKCD.Status.CurrStatus == t.kcdStates[newKCD.Name] {
 		return
 	}
+
 	podStatus := newKCD.Status.CurrStatus
 	log.Infof("KCD status updated: %s", podStatus)
+
+	//oldObj and newObj are the same most of the time beacuse of how the k8s API server bundles updates
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
 		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
 		return
 	}
+
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.kcdFinish(newKCD)
 	}
@@ -215,12 +221,14 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 
 	podStatus := newKCD.Status.CurrStatus
 	log.Tracef("KCD with status: %s", podStatus)
+
+	//oldObj and newObj are the same most of the time beacuse of how the k8s API server bundles updates
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
 		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
 		return
 	}
-	//This happens when a tracker is spawned and the job is already finished (this should not happen)
+	//This happens when a tracker is spawned and the job is already finished (this should not happen but he handle it if it does)
 	if podStatus == kcdutil.StatusSuccess || podStatus == kcdutil.StatusFailed {
 		t.kcdFinish(newKCD)
 	}
@@ -229,15 +237,17 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 func (t *Tracker) kcdFinish(kcd *customv1.KCD) {
 	t.deployFinishHandler(kcd)
 	log.Info("Finished sending ")
-	//Do not double close the channel
-	if atomic.LoadInt32(&t.queueDone) == int32(0) {
-		atomic.StoreInt32(&t.queueDone, int32(1))
+	//Do not double close channels
+	if atomic.LoadInt32(&t.deployMessageQueueDone) == int32(0) {
+		atomic.StoreInt32(&t.deployMessageQueueDone, int32(1))
+		//Close all informer channels after
 		for _, informer := range t.informerList {
 			close(t.informerQueues[informer])
 		}
 	}
 }
 
+//Send all finish events
 func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 	status := kcd.Status.CurrStatus
 	success := false
@@ -281,7 +291,7 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD) {
 
 //Adds a new job request into the work queue without
 func (t *Tracker) enqueue(ichan chan DeployMessage, m DeployMessage) {
-	if atomic.LoadInt32(&t.queueDone) == int32(0) {
+	if atomic.LoadInt32(&t.deployMessageQueueDone) == int32(0) {
 		ichan <- m
 	}
 }
@@ -294,14 +304,16 @@ func (t *Tracker) InformerQueueMerger() {
 		wg.Add(1)
 		go func() {
 			for m := range c {
-				t.queue <- m
+				t.deployMessageQueue <- m
+				t.deployMessageQueueWG.Add(1)
 			}
 			wg.Done()
 		}()
 	}
-	wg.Wait()
+	wg.Wait()                     //Wait for all informer channels to close (end of deployment)
+	t.deployMessageQueueWG.Wait() //Wait for all remaining messages to be sent
 	log.Info("closing main chan")
-	close(t.queue)
+	close(t.deployMessageQueue)
 }
 
 // Run starts the tracker
@@ -337,7 +349,6 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 	}()
 
 	<-stopCh
-	//t.queue.ShutDown()
 	waitgroup.Wait()
 	log.Info("Shutting down tracker")
 	return nil
@@ -345,19 +356,20 @@ func (t *Tracker) Run(threadCount int, stopCh <-chan struct{}, waitgroup *sync.W
 
 func (t *Tracker) runWorker() {
 	log.Info("Running worker")
-	for m := range t.queue {
+	for m := range t.deployMessageQueue {
 		log.Info("Dequeue Message")
 		success := t.processNextItem(m)
 		if !success {
 			m.Retries++
 			time.Sleep(t.sleepDuration(m.Retries))
-			t.queue <- m
+			t.deployMessageQueue <- m
 		}
 	}
 }
 
 func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	switch endtype := t.endpointendpointtype; endtype {
+	//Send message to correct http endpoint
 	case "http":
 		switch messageType := data.Type; messageType {
 		case "deployFinished":
@@ -368,11 +380,15 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 			log.WithFields(log.Fields{"message_type": messageType}).Warn("Unknown message type for http endpoint")
 			success = true //Prevent Retry for bad message
 		}
+	//Send to sqs
 	case "sqs":
 		success = t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, data)
 	default:
-		log.WithFields(log.Fields{"endpoint_type": endtype}).Warn("Unknown endpoint type")
+		log.WithFields(log.Fields{"endpoint_type": endtype}).Fatal("Unknown endpoint type")
 		success = true //Prevent Retry for bad message
+	}
+	if success {
+		t.deployMessageQueueWG.Done()
 	}
 	return success
 }
