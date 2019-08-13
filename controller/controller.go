@@ -49,6 +49,8 @@ type Controller struct {
 
 	jobDeleteStatus map[string]chan int
 	sync.Mutex
+
+	jobCleaner JobCleaner
 }
 
 //NewController Creates a new deyployment controller
@@ -85,6 +87,8 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 	c.jobcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: c.deleteJob,
 	})
+	c.jobCleaner = *NewJobCleaner(c.jobcInformer, c.batchClient)
+
 	return c, nil
 }
 
@@ -197,8 +201,9 @@ func (c *Controller) processItem(key string) error {
 				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
 				if err != nil {
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)
+				} else {
+					<-jobDeleted
 				}
-				<-jobDeleted
 				c.Lock()
 				delete(c.jobDeleteStatus, jobName)
 				c.Unlock()
