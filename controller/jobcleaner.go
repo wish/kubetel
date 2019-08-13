@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -36,30 +37,30 @@ func (j *JobCleaner) cleanAddJob(obj interface{}) {
 		log.Errorf("Not a job object")
 		return
 	}
-	var gracePeriodSeconds int64
-	var propagationPolicy metav1.DeletionPropagation = metav1.DeletePropagationForeground
-	jobsClient := j.batchClient.Jobs(job.Namespace)
+	if !strings.Contains("deploy-tracker-", job.Name) {
+		return
+	}
+
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == "Complete" && condition.Status == "True" {
-			go func() {
-				time.Sleep(time.Minute)
-				err := jobsClient.Delete(job.Name, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
-				if err != nil {
-					log.Warnf("failed to delete job %s with error: %s", job.Name, err)
-				}
-			}()
+			go j.deleteJobAfter(job.Name, job.Namespace, 1)
 		} else if condition.Type == "Failed" && condition.Status == "True" {
-			go func() {
-				time.Sleep(5 * time.Minute)
-				err := jobsClient.Delete(job.Name, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
-				if err != nil {
-					log.Warnf("failed to delete job %s with error: %s", job.Name, err)
-				}
-			}()
+			go j.deleteJobAfter(job.Name, job.Namespace, 5)
 		}
 	}
 }
 
 func (j *JobCleaner) trackUpdateJob(oldObj interface{}, newObj interface{}) {
 	j.cleanAddJob(newObj)
+}
+
+func (j *JobCleaner) deleteJobAfter(jobName, jobNamespace string, after int) {
+	time.Sleep(time.Duration(after) * time.Minute)
+	var gracePeriodSeconds int64
+	var propagationPolicy metav1.DeletionPropagation = metav1.DeletePropagationForeground
+	jobsClient := j.batchClient.Jobs(jobNamespace)
+	err := jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
+	if err != nil {
+		log.Warnf("failed to delete job %s with error: %s", jobName, err)
+	}
 }
