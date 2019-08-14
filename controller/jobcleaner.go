@@ -59,8 +59,16 @@ func (j *JobCleaner) deleteJobAfter(jobName, jobNamespace string, after int) {
 	var gracePeriodSeconds int64
 	var propagationPolicy metav1.DeletionPropagation = metav1.DeletePropagationForeground
 	jobsClient := j.batchClient.Jobs(jobNamespace)
-	err := jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
-	if err != nil {
-		log.Warnf("failed to delete job %s with error: %s", jobName, err)
+	exJob, err := jobsClient.Get(jobName, metav1.GetOptions{})
+	if err == nil {
+		for _, condition := range exJob.Status.Conditions {
+			if (condition.Type == "Complete" || condition.Type == "Failed") && condition.Status == "True" {
+				err := jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
+				if err != nil {
+					log.Warnf("failed to delete job %s with error: %s", jobName, err)
+				}
+			}
+		}
+
 	}
 }
