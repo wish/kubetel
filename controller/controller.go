@@ -74,11 +74,6 @@ func NewController(k8sClient kubernetes.Interface, customCS clientset.Interface,
 		endpointMap:     viper.GetStringMapString("tracker.appendpoints"),
 	}
 
-	//go jobInformer.Run(done)
-	//if !cache.WaitForCacheSync(done, jobInformer.HasSynced) {
-	//	log.Errorf("Fail to wait for (secondary) cache sync")
-	//}
-
 	c.kcdcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.trackAddKcd,
 		UpdateFunc: c.trackKcd,
