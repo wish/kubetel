@@ -25,8 +25,10 @@ type ServerConfig struct {
 
 //ControllerConfig for config file structure
 type ControllerConfig struct {
-	MaxRetries  int `mapstructure:"maxretries"`
-	WorkerCount int `mapstructure:"workercount"`
+	MaxRetries    int `mapstructure:"maxretries"`
+	WorkerCount   int `mapstructure:"workercount"`
+	CompeteJobTTL int `mapstructure:"completejobttl"`
+	FailedJobTTL  int `mapstructure:"failedjobttl"`
 }
 
 //TrackerConfig for config file structure

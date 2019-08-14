@@ -53,6 +53,8 @@ func setDefaults() {
 	viper.SetDefault("tracker.workercount", 2)
 	viper.SetDefault("image", "951896542015.dkr.ecr.us-west-1.amazonaws.com/wish/kubetel:v1.0")
 	viper.SetDefault("namespace", "kubetel")
+	viper.SetDefault("controller.completejobttl", 1)
+	viper.SetDefault("controller.failedjobttl", 5)
 }
 
 func init() {
