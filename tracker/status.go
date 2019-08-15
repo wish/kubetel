@@ -30,3 +30,15 @@ type FinishedStatusData struct {
 	Version   string
 	Success   bool
 }
+
+//FailedPodLogData is FailedPodLogData
+type FailedPodLogData struct {
+	Cluster   string
+	Timestamp time.Time
+	Deploy    appsv1.Deployment
+	Version   string
+
+	PodName       string
+	ContainerName string
+	Logs          string
+}

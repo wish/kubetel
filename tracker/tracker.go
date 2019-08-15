@@ -3,8 +3,8 @@ package tracker
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -14,17 +14,21 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/spf13/viper"
 	customv1 "github.com/wish/kubetel/gok8s/apis/custom/v1"
 	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
 	kcdutil "github.com/wish/kubetel/gok8s/kcdutil"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	k8sinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -49,6 +53,7 @@ type Tracker struct {
 	informerQueues map[string]chan DeployMessage
 
 	deploymentClient appsclientv1.DeploymentInterface
+	podClient        coreclientv1.PodInterface
 
 	httpClient *http.Client
 	rand       *rand.Rand
@@ -94,6 +99,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	}
 
 	deploymentClient := k8sClient.AppsV1().Deployments(c.Namespace)
+	podClient := k8sClient.CoreV1().Pods(viper.GetString("tracker.namespace"))
 
 	//Set up message endpoint
 	var httpClient *http.Client
@@ -120,6 +126,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		kcdcInformer:        kcdInformer.Informer(),
 
 		deploymentClient: deploymentClient,
+		podClient:        podClient,
 
 		k8scSynced: deploymentInformer.Informer().HasSynced,
 		kcdcSynced: kcdInformer.Informer().HasSynced,
@@ -260,6 +267,12 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 	if err != nil {
 		return
 	}
+
+	//Send Additional Information if the deployment fails
+	if !success {
+		t.deployFailureHandler(kcd, deployments)
+	}
+
 	//For each Kubernets deployemnt tracked by a KCD send a status for each
 	for _, item := range deployments.Items {
 		deployment := item
@@ -277,16 +290,62 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 		t.enqueue(t.informerQueues["kcd"], deployMessage)
 	}
 
-	//Send Additional Information if the deployment fails
-	if !success {
-		t.deployFailureHandler(kcd)
-	}
 }
 
 //Grab logs of pods in a failed deployment
-func (t *Tracker) deployFailureHandler(kcd *customv1.KCD) {
-	//TODO
+func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.DeploymentList) {
+	for _, item := range deployments.Items {
+		deployment := item
+		set := labels.Set(deployment.Spec.Selector.MatchLabels)
+		pods, err := t.podClient.List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
+		if err != nil {
+			log.Warnf("Unable to grab pod logs for deployment: " + deployment.Name)
+		}
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != "Running" {
+				for _, container := range pod.Spec.Containers {
+					logs, err := t.getContainerLog(pod.Name, container.Name)
+					if err != nil {
+						log.Warn(err)
+					}
+					log.Info(logs)
+					deployMessage := DeployMessage{
+						Type:    "deployFailedLogs",
+						Version: "v1alpha1",
+						Body: FailedPodLogData{
+							t.clusterName,
+							time.Now().UTC(),
+							deployment,
+							t.version,
+							pod.Name,
+							container.Name,
+							logs,
+						},
+					}
+					t.enqueue(t.informerQueues["kcd"], deployMessage)
+				}
+			}
+		}
+
+	}
 	return
+}
+
+func (t *Tracker) getContainerLog(podName, containerName string) (string, error) {
+	req := t.podClient.GetLogs(podName, &corev1.PodLogOptions{Container: containerName})
+
+	readCloser, err := req.Stream()
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get logs from %s/%s", podName, containerName)
+		return msg, errors.Wrap(err, msg)
+	}
+	defer readCloser.Close()
+	body, err := ioutil.ReadAll(readCloser)
+	logs := string(body)
+	if len(logs) > 200000 {
+		logs = logs[len(logs)-200000:]
+	}
+	return logs, nil
 }
 
 //Adds a new job request into the work queue without
@@ -376,6 +435,8 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), data)
 		case "deployStatus":
 			success = t.sendDeploymentEventHTTP(t.deployStatusEndpointAPI, data)
+		case "deployFailedLogs":
+			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/podlogs", t.deployStatusEndpointAPI), data)
 		default:
 			log.WithFields(log.Fields{"message_type": messageType}).Warn("Unknown message type for http endpoint")
 			success = true //Prevent Retry for bad message
