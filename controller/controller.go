@@ -161,6 +161,7 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
+//Process the next KCD in the queue
 func (c *Controller) processItem(key string) error {
 	obj, exists, err := c.kcdcInformer.GetIndexer().GetByKey(key)
 	if err != nil {
@@ -189,16 +190,21 @@ func (c *Controller) processItem(key string) error {
 		for _, condition := range exJob.Status.Conditions {
 			if (condition.Type == "Complete" || condition.Type == "Failed") &&
 				condition.Status == "True" {
+				//Here we pass map the jobname we want to delelete to a channel
+				//Once the jobcInformer get the deletion event it will write to the channel
 				jobDeleted := make(chan int)
 				c.Lock()
 				c.jobDeleteStatus[jobName] = jobDeleted
 				c.Unlock()
 				err = jobsClient.Delete(jobName, &metav1.DeleteOptions{GracePeriodSeconds: &gracePeriodSeconds, PropagationPolicy: &propagationPolicy})
 				if err != nil {
+					//If this fails, the job probably was deleted someone else before we got the chance
 					log.Warnf("failed to delete job %s with error: %s", jobName, err)
 				} else {
+					//Otherwise wiat for the deletion conformation
 					<-jobDeleted
 				}
+				//Cleanup
 				c.Lock()
 				delete(c.jobDeleteStatus, jobName)
 				c.Unlock()
@@ -207,7 +213,7 @@ func (c *Controller) processItem(key string) error {
 		}
 	}
 
-	//Check if there is a specific endpoint for the app else use default
+	//Check if there is a specific endpoint override for the app else use default
 	var endpoint string
 	if endpoint, ok = c.endpointMap[name]; !ok {
 		endpoint = viper.GetString("tracker.endpoint")
@@ -273,17 +279,20 @@ func (c *Controller) processItem(key string) error {
 	}
 	_, err = jobsClient.Create(job)
 	if err != nil {
+		//Occasionally this is caused by a race condition and is fine
 		if strings.Contains(err.Error(), "already exists") {
 			log.Infof("Job : %s : already exists, skipping", jobName)
 			return nil
 		}
+
 		return errors.Wrapf(err, "Failed to create job %s", job.Name)
 	}
 	return nil
 }
 
+//Handler for kcdcInformer Update
 func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
-
+	//Check that we actully have KCD objects
 	newKCD, ok := newObj.(*customv1.KCD)
 	if !ok {
 		log.Errorf("Not a KCD object")
@@ -294,6 +303,7 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 		log.Errorf("Not a KCD object")
 		return
 	}
+
 	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
 		return
 	}
@@ -303,11 +313,15 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing && c.kcdStates[newKCD.Name] != kcdutil.StatusProgressing {
 		c.enqueue(newObj)
 	}
-
+	//We need to keep track of the last known state in kubetel becuase most of the time
+	//the api server will bundle multiple events into one update and the oldObj and newObj
+	//will be identical
 	c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 
 }
 
+//Handler for kcdcInformer Add
+//This occours if the tracker crashes and restarts to find a completed deployment
 func (c *Controller) trackAddKcd(newObj interface{}) {
 	newKCD, ok := newObj.(*customv1.KCD)
 	if !ok {
@@ -320,6 +334,7 @@ func (c *Controller) trackAddKcd(newObj interface{}) {
 	}
 }
 
+//Handler for JobcInformer Delete
 func (c *Controller) deleteJob(obj interface{}) {
 	job, ok := obj.(*batchv1.Job)
 	if !ok {
@@ -327,6 +342,10 @@ func (c *Controller) deleteJob(obj interface{}) {
 		return
 	}
 	var ch chan int
+
+	//If there is a chan mapped to this jobname it then a worker thread
+	//Is waiting for a delete conformation and by writing to the the mapped
+	//chan
 	c.Lock()
 	ch, ok = c.jobDeleteStatus[job.Name]
 	if ok {

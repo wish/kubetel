@@ -69,10 +69,12 @@ func (j *JobCleaner) cleanAddJob(obj interface{}) {
 	}
 }
 
+//Handler for jobcInformer Update
 func (j *JobCleaner) trackUpdateJob(oldObj interface{}, newObj interface{}) {
 	j.cleanAddJob(newObj)
 }
 
+//Handler for jobcInformer Update
 func (j *JobCleaner) deleteJobAfter(jobName, jobNamespace string, after int) {
 	time.Sleep(time.Duration(after) * time.Minute)
 
@@ -100,6 +102,8 @@ func (j *JobCleaner) deleteJobAfter(jobName, jobNamespace string, after int) {
 		log.Tracef("JobCleaner: Job %s was slated for deletion but was found running", jobName)
 		return
 	}
+	//Happens quite oftern where a job is rescheduled for deletion by an update sent by the api server
+	//So we just log it and do nothing
 	log.Tracef("JobCleaner: Job %s was already deleted", jobName)
 	return
 }

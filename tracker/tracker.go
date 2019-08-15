@@ -119,6 +119,9 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 			Region: aws.String(c.SQSregion),
 		}))
 		sqsClient = sqs.New(sess)
+	default:
+		err := errors.New("Unknown endpoint type given: " + c.Endpointendpointtype)
+		return nil, err
 	}
 
 	t := &Tracker{
@@ -508,6 +511,7 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 	return true
 }
 
+//Generates a time to sleep for based on how many retures there have been
 func (t *Tracker) sleepDuration(attempts int) time.Duration {
 	sleepTime := (t.rand.Float64() + 1) + math.Pow(2, float64(attempts-0))
 	durationStr := fmt.Sprintf("%ss", strconv.FormatFloat(sleepTime, 'f', 2, 64))

@@ -60,7 +60,10 @@ var deployController = &cobra.Command{
 		k8sInformerFactory := k8sinformers.NewSharedInformerFactory(k8sClient, time.Second*30)
 
 		log.Debug("Creating New Controller")
-		c, _ := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
+		c, err := controller.NewController(k8sClient, customClient, kcdcInformerFactory, k8sInformerFactory)
+		if err != nil {
+			panic(err.Error())
+		}
 		go func() {
 			if err = c.Run(2, stopCh); err != nil {
 				log.Infof("Shutting down container version controller: %v", err)
