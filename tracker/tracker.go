@@ -435,6 +435,8 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), data)
 		case "deployStatus":
 			success = t.sendDeploymentEventHTTP(t.deployStatusEndpointAPI, data)
+		case "deployFailedLogs":
+			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/podlogs", t.deployStatusEndpointAPI), data)
 		default:
 			log.WithFields(log.Fields{"message_type": messageType}).Warn("Unknown message type for http endpoint")
 			success = true //Prevent Retry for bad message
