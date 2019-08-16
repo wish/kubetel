@@ -28,6 +28,7 @@ var deployTracker = &cobra.Command{
 
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
+		//Set up k8s auth
 		var config *rest.Config
 		if k8sConfig != "" {
 			config, err = clientcmd.BuildConfigFromFlags("", k8sConfig)
@@ -40,8 +41,9 @@ var deployTracker = &cobra.Command{
 		}
 		log.Trace("Suscessfully completed k8s authentication")
 
+		//Setup signal handler
 		stopCh := signals.SetupSignalHandler()
-		var waitgroup sync.WaitGroup
+		var waitgroup sync.WaitGroup //Used to see when all workers are finished
 
 		k8sClient, err := kubernetes.NewForConfig(config)
 		if err != nil {
@@ -52,7 +54,7 @@ var deployTracker = &cobra.Command{
 			panic(err.Error())
 		}
 
-		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil) //May need additional filtering
+		k8sInformerFactory := k8sinformers.NewFilteredSharedInformerFactory(k8sClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 		kcdcInformerFactory := informer.NewFilteredSharedInformerFactory(customClient, time.Second*30, viper.GetString("tracker.namespace"), nil)
 
 		c := tracker.Config{
@@ -65,7 +67,10 @@ var deployTracker = &cobra.Command{
 			KCDapp:               viper.GetString("tracker.kcdapp"),
 		}
 
-		t, _ := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory, c)
+		t, err := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory, c)
+		if err != nil {
+			panic(err.Error())
+		}
 		go func() {
 			if err = t.Run(viper.GetInt("tracker.workercount"), stopCh, &waitgroup); err != nil {
 				log.Infof("Shutting down tracker: %v", err)
