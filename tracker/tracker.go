@@ -370,13 +370,14 @@ func (t *Tracker) InformerQueueMerger() {
 		wg.Add(1)
 		go func() {
 			for m := range c {
-				t.deployMessageQueue <- m
 				t.deployMessageQueueWG.Add(1)
+				t.deployMessageQueue <- m
 			}
 			wg.Done()
 		}()
 	}
-	wg.Wait()                     //Wait for all informer channels to close (end of deployment)
+	wg.Wait() //Wait for all informer channels to close (end of deployment)
+	time.Sleep(time.Second)
 	t.deployMessageQueueWG.Wait() //Wait for all remaining messages to be sent
 	log.Info("closing main chan")
 	close(t.deployMessageQueue)
