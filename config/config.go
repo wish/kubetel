@@ -40,5 +40,5 @@ type TrackerConfig struct {
 	Namespace    string            `mapstructure:"namespace"`
 	Endpoint     string            `mapstructure:"endpoint"`
 	Endpointtype string            `mapstructure:"endpointtype"`
-	AppEndpoints map[string]string `mapstructure:"appendpoints"` //This map from a app name to an endpoint will allow you to overwirte the endpoint for certain apps
+	AppEndpoints map[string]string `mapstructure:"appendpoints"` //This map from a app name to an endpoint will allow you to overwrite the endpoint for certain apps
 }

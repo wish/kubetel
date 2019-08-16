@@ -313,7 +313,7 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing && c.kcdStates[newKCD.Name] != kcdutil.StatusProgressing {
 		c.enqueue(newObj)
 	}
-	//We need to keep track of the last known state in kubetel becuase most of the time
+	//We need to keep track of the last known state in kubetel because most of the time
 	//the api server will bundle multiple events into one update and the oldObj and newObj
 	//will be identical
 	c.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
