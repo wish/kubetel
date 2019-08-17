@@ -210,7 +210,7 @@ func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
 	podStatus := newKCD.Status.CurrStatus
 	log.Infof("KCD status updated: %s", podStatus)
 
-	//oldObj and newObj are the same most of the time beacuse of how the k8s API server bundles updates
+	//oldObj and newObj are the same most of the time because of how the k8s API server bundles updates
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
 		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
@@ -232,7 +232,7 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 	podStatus := newKCD.Status.CurrStatus
 	log.Tracef("KCD with status: %s", podStatus)
 
-	//oldObj and newObj are the same most of the time beacuse of how the k8s API server bundles updates
+	//oldObj and newObj are the same most of the time because of how the k8s API server bundles updates
 	t.kcdStates[newKCD.Name] = newKCD.Status.CurrStatus
 	if name, ok := newKCD.Spec.Selector["kcdapp"]; !ok || name != t.kcdapp {
 		log.Tracef("%s:%s", newKCD.Spec.Selector["kcdapp"], t.kcdapp)
@@ -344,6 +344,10 @@ func (t *Tracker) getContainerLog(podName, containerName string) (string, error)
 	}
 	defer readCloser.Close()
 	body, err := ioutil.ReadAll(readCloser)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse logs from %s/%s", podName, containerName)
+		return msg, errors.Wrap(err, msg)
+	}
 	logs := string(body)
 	if len(logs) > 200000 {
 		logs = logs[len(logs)-200000:]

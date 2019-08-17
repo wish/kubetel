@@ -33,7 +33,7 @@ func TestDeployUpdateHTTP(t *testing.T) {
 		var s = new(tracker.StatusData)
 		err := json.Unmarshal(b, &s)
 		if err != nil {
-			t.Errorf("Did not get a Status Data responce, got: %s", string(b))
+			t.Errorf("Did not get a Status Data response, got: %s", string(b))
 		}
 		if s.Deploy.Labels["kcdapp"] != kcdapp {
 			t.Errorf("Got Status Data for app that was not expected: %s", s.Deploy.Labels["kcdapp"])
@@ -95,7 +95,7 @@ func TestDeployUpdateHTTPRetry(t *testing.T) {
 		var s = new(tracker.StatusData)
 		err := json.Unmarshal(b, &s)
 		if err != nil {
-			t.Errorf("Did not get a Status Data responce, got: %s", string(b))
+			t.Errorf("Did not get a Status Data response, got: %s", string(b))
 		}
 		if s.Deploy.Labels["kcdapp"] != kcdapp {
 			t.Errorf("Got Status Data for app that was not expected: %s", s.Deploy.Labels["kcdapp"])
@@ -159,7 +159,7 @@ func TestKCDFinishSuccess(t *testing.T) {
 		var s = new(tracker.FinishedStatusData)
 		err := json.Unmarshal(b, &s)
 		if err != nil {
-			t.Errorf("Did not get a Status Data responce, got: %s", string(b))
+			t.Errorf("Did not get a Status Data response, got: %s", string(b))
 		}
 		if s.Deploy.Labels["kcdapp"] != kcdapp {
 			t.Errorf("Got Status Data for app that was not expected: %s", s.Deploy.Labels["kcdapp"])
@@ -229,7 +229,7 @@ func TestKCDFinishOnStart(t *testing.T) {
 		var s = new(tracker.FinishedStatusData)
 		err := json.Unmarshal(b, &s)
 		if err != nil {
-			t.Errorf("Did not get a Status Data responce, got: %s", string(b))
+			t.Errorf("Did not get a Status Data response, got: %s", string(b))
 		}
 		if s.Deploy.Labels["kcdapp"] != kcdapp {
 			t.Errorf("Got Status Data for app that was not expected: %s", s.Deploy.Labels["kcdapp"])
