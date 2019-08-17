@@ -496,11 +496,11 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 	log.Tracef("BODY: %s", string(jsonData[:]))
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageAttributes: map[string]*sqs.MessageAttributeValue{
-			"Type": &sqs.MessageAttributeValue{
+			"Type": {
 				DataType:    aws.String("String"),
 				StringValue: aws.String(messageType),
 			},
-			"Version": &sqs.MessageAttributeValue{
+			"Version": {
 				DataType:    aws.String("String"),
 				StringValue: aws.String(messageVersion),
 			},

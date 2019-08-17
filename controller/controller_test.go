@@ -251,7 +251,7 @@ func generateTestingJob(postfix, namespace, version, status string) *batchv1.Job
 		},
 		Status: batchv1.JobStatus{
 			Conditions: []batchv1.JobCondition{
-				batchv1.JobCondition{
+				{
 					Type:   batchv1.JobConditionType(status),
 					Status: "True",
 				},
