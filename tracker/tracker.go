@@ -305,7 +305,17 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.De
 			log.Warnf("Unable to grab pod logs for deployment: " + deployment.Name)
 		}
 		for _, pod := range pods.Items {
-			if pod.Status.Phase != "Running" {
+			log.Tracef("Got pod: %v in", pod.Name)
+			podReady := false
+			var podMessage, podReason string
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == "Ready" && condition.Status == "True" {
+					podReady = true
+					podMessage = condition.Message
+					podReason = condition.Reason
+				}
+			}
+			if !podReady {
 				for _, container := range pod.Spec.Containers {
 					logs, err := t.getContainerLog(pod.Name, container.Name)
 					if err != nil {
@@ -314,7 +324,7 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.De
 					log.Info(logs)
 					deployMessage := DeployMessage{
 						Type:    "deployFailedLogs",
-						Version: "v1alpha1",
+						Version: "v1alpha2",
 						Body: FailedPodLogData{
 							t.clusterName,
 							time.Now().UTC(),
@@ -323,6 +333,8 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.De
 							pod.Name,
 							container.Name,
 							logs,
+							podReason,
+							podMessage,
 						},
 					}
 					t.enqueue(t.informerQueues["kcd"], deployMessage)
@@ -494,7 +506,6 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 		return false
 	}
 	log.Tracef("Sending: deploy message %s", messageType)
-	log.Tracef("BODY: %s", string(jsonData[:]))
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageAttributes: map[string]*sqs.MessageAttributeValue{
 			"Type": {

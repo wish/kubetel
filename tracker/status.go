@@ -38,7 +38,9 @@ type FailedPodLogData struct {
 	Deploy    appsv1.Deployment
 	Version   string
 
-	PodName       string
-	ContainerName string
-	Logs          string
+	PodName           string
+	ContainerName     string
+	Logs              string
+	PodFailureReason  string
+	PodFailureMessage string
 }
