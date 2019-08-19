@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	raven "github.com/getsentry/raven-go"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -67,10 +68,11 @@ func init() {
 	rootCmd.PersistentFlags().String("sqsregion", "", "aws region for sqs")
 	rootCmd.PersistentFlags().StringVar(&k8sConfig, "k8s-config", "", "Path to the kube config file. Only required for running outside k8s cluster. In cluster, pods credentials are used")
 	rootCmd.PersistentFlags().String("log", "", "log level (warn, info, debug, trace)")
-	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
 	rootCmd.PersistentFlags().String("cluster", "", "log level (warn, info, debug, trace)")
 	rootCmd.PersistentFlags().Int("server-port", 80, "port to bind status endpoint")
 	rootCmd.PersistentFlags().StringToString("nodeSelector", map[string]string{"": ""}, "Node selector for job in form map[string]string")
+	rootCmd.PersistentFlags().Bool("crash-logging", false, "Enable crash logging")
+	rootCmd.PersistentFlags().String("environment", "dev", "Set environment runtime of kubetel")
 
 	if err := viper.BindPFlag("server.port", rootCmd.PersistentFlags().Lookup("server-port")); err != nil {
 		fmt.Printf("Error binding viper to cluster %s", err)
@@ -95,6 +97,17 @@ func init() {
 	if err := viper.BindPFlag("crash_logging.enabled", rootCmd.PersistentFlags().Lookup("crash-logging")); err != nil {
 		fmt.Printf("error binding viper to crash_logging ")
 		os.Exit(1)
+	}
+
+	if viper.GetBool("crash_logging.enabled") {
+		sentryDSN := viper.GetString("crash_logging.sentry.dsn")
+		if sentryDSN != "" {
+			raven.SetDSN(sentryDSN)
+		}
+		sentryEnv := viper.GetString("environment")
+		if sentryEnv != "" {
+			raven.SetEnvironment(sentryEnv)
+		}
 	}
 }
 

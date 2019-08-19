@@ -216,8 +216,8 @@ func TestKCDFinishSuccess(t *testing.T) {
 	customClient.CustomV1().KCDs("testing").Update(kcd2)
 	kcd1.Status.CurrStatus = "Success"
 	customClient.CustomV1().KCDs("testing").Update(kcd1)
-	<-stopChan
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
+
 }
 
 func TestKCDFinishOnStart(t *testing.T) {
@@ -248,8 +248,9 @@ func TestKCDFinishOnStart(t *testing.T) {
 		KCDapp:               kcdapp,
 	}
 
-	kcd1 := generateTestingKCD("1", "testing", "1111111", "Success")
+	time.Sleep(time.Second * 2)
 
+	kcd1 := generateTestingKCD("1", "testing", "1111111", "Success")
 	deploy1 := generateTestingDeployment("1", "testing", "1111111")
 
 	customObjs := []runtime.Object{
@@ -274,9 +275,7 @@ func TestKCDFinishOnStart(t *testing.T) {
 			log.Infof("Shutting down tracker: %v", err)
 		}
 	}()
-
-	<-stopChan
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 }
 
 func generateTestingDeployment(postfix, namespace, version string) *appsv1.Deployment {
