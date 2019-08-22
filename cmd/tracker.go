@@ -77,9 +77,6 @@ var deployTracker = &cobra.Command{
 			}
 		}()
 
-		k8sInformerFactory.Start(stopCh)
-		kcdcInformerFactory.Start(stopCh)
-
 		log.Debug("Staring Server")
 		err = healthmonitor.NewServer(viper.GetInt("server.port"), stopCh)
 		if err != nil {

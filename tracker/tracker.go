@@ -246,7 +246,6 @@ func (t *Tracker) trackAddKcd(newObj interface{}) {
 
 func (t *Tracker) kcdFinish(kcd *customv1.KCD) {
 	t.deployFinishHandler(kcd)
-	log.Info("Finished sending ")
 	//Do not double close channels
 	if atomic.LoadInt32(&t.deployMessageQueueDone) == int32(0) {
 		atomic.StoreInt32(&t.deployMessageQueueDone, int32(1))
@@ -295,7 +294,7 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 
 }
 
-//Grab logs of pods in a failed deployment
+//Grab logs from each container in all failed pods from a deployment
 func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.DeploymentList) {
 	for _, item := range deployments.Items {
 		deployment := item
@@ -305,16 +304,25 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.De
 			log.Warnf("Unable to grab pod logs for deployment: " + deployment.Name)
 		}
 		for _, pod := range pods.Items {
-			if pod.Status.Phase != "Running" {
+			log.Tracef("Got pod: %v in", pod.Name)
+			podReady := false
+			var podMessage, podReason string
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == "Ready" && condition.Status == "True" {
+					podReady = true
+					podMessage = condition.Message
+					podReason = condition.Reason
+				}
+			}
+			if !podReady {
 				for _, container := range pod.Spec.Containers {
 					logs, err := t.getContainerLog(pod.Name, container.Name)
 					if err != nil {
 						log.Warn(err)
 					}
-					log.Info(logs)
 					deployMessage := DeployMessage{
 						Type:    "deployFailedLogs",
-						Version: "v1alpha1",
+						Version: "v1alpha2",
 						Body: FailedPodLogData{
 							t.clusterName,
 							time.Now().UTC(),
@@ -323,6 +331,8 @@ func (t *Tracker) deployFailureHandler(kcd *customv1.KCD, deployments *appsv1.De
 							pod.Name,
 							container.Name,
 							logs,
+							podReason,
+							podMessage,
 						},
 					}
 					t.enqueue(t.informerQueues["kcd"], deployMessage)
@@ -349,6 +359,8 @@ func (t *Tracker) getContainerLog(podName, containerName string) (string, error)
 		return msg, errors.Wrap(err, msg)
 	}
 	logs := string(body)
+
+	//Truncate to 200000 bytes beacuse of SQS max message size
 	if len(logs) > 200000 {
 		logs = logs[len(logs)-200000:]
 	}
@@ -494,7 +506,6 @@ func (t *Tracker) sendDeploymentEventSQS(endpoint string, m DeployMessage) bool 
 		return false
 	}
 	log.Tracef("Sending: deploy message %s", messageType)
-	log.Tracef("BODY: %s", string(jsonData[:]))
 	_, err = t.sqsClient.SendMessage(&sqs.SendMessageInput{
 		MessageAttributes: map[string]*sqs.MessageAttributeValue{
 			"Type": {

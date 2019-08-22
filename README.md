@@ -38,3 +38,8 @@ docker build -t wish/kubetel
 ### Applying to a Kubernetes cluster
 
 Example Kubectl, yaml specs and Helm chart spec are still #TODO, However the configuation spec can be found [here](https://github.com/wish/kubetel/blob/master/config/config.go) and the required RBAC configuation can be found [here](https://github.com/wish/kubetel/blob/master/deploy/kind/kind-setup.yaml)
+
+## Updating kubernetes version
+
+Currently we are running `kubernetes-1.10.11`
+Instructions to update the client-go and autogen code can be found [here](https://github.com/wish/kubetel/blob/master/codegen/README.md)
