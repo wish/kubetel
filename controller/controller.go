@@ -304,10 +304,14 @@ func (c *Controller) trackKcd(oldObj interface{}, newObj interface{}) {
 		return
 	}
 
+	log.Infof("oldKCD status: %v vs newKCD status: %v", oldKCD.Status.CurrStatus, newKCD.Status.CurrStatus)
+	log.Infof("in-memory kcdStates: %v", c.kcdStates)
 	if oldKCD.Status.CurrStatus == newKCD.Status.CurrStatus {
+		log.Info("oldKCD and newKCD status unchanged")
 		return
 	}
 	if newKCD.Status.CurrStatus == c.kcdStates[newKCD.Name] {
+		log.Info("newKCD and in-memory kcdStates status unchanged")
 		return
 	}
 	if newKCD.Status.CurrStatus == kcdutil.StatusProgressing && c.kcdStates[newKCD.Name] != kcdutil.StatusProgressing {
