@@ -11,7 +11,7 @@ import (
 	"github.com/wish/kubetel/controller"
 	clientset "github.com/wish/kubetel/gok8s/client/clientset/versioned"
 	informer "github.com/wish/kubetel/gok8s/client/informers/externalversions"
-	"github.com/wish/kubetel/healthmonitor"
+	"github.com/wish/kubetel/router"
 	"github.com/wish/kubetel/signals"
 
 	k8sinformers "k8s.io/client-go/informers"
@@ -71,7 +71,7 @@ var deployController = &cobra.Command{
 		}()
 
 		log.Debug("Staring Server")
-		err = healthmonitor.NewServer(viper.GetInt("server.port"), stopCh)
+		err = router.NewServer(viper.GetInt("server.port"), stopCh)
 		if err != nil {
 			return errors.Wrap(err, "failed to start new server")
 		}

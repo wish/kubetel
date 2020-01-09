@@ -8,6 +8,7 @@ require (
 	github.com/getsentry/raven-go v0.2.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/googleapis/gnostic v0.3.0 // indirect
+	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/howeyc/gopass v0.0.0-20170109162249-bf9dde6d0d2c // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
@@ -21,7 +22,8 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.4.0
-	goji.io v2.0.2+incompatible
+	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 // indirect
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.0.0-20181126191646-05ef6506a18a //kubernetes-1.10.11
 	k8s.io/apimachinery v0.0.0-20181126123303-08e1968f78a1 //kubernetes-1.10.11

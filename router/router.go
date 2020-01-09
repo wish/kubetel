@@ -1,4 +1,4 @@
-package healthmonitor
+package router
 
 import (
 	"context"
@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
-	goji "goji.io"
-	"goji.io/pat"
 )
 
 type server struct {
@@ -16,12 +15,13 @@ type server struct {
 
 //NewServer creates a new http server
 func NewServer(port int, stopCh chan struct{}) error {
-	mux := goji.NewMux()
-	mux.Handle(pat.Get("/status"), StaticContentHandler("ok"))
+
+	router := mux.NewRouter()
+	router.HandleFunc("/status", StaticContentHandler("ok"))
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      mux,
+		Handler:      router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 1 * time.Minute,
 	}
