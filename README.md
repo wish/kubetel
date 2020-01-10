@@ -22,6 +22,14 @@ Kubetel has 2 main components:
 
 ## Usage
 
+### Format and test
+
+```bash
+make lint
+make vet
+make test
+```
+
 ### Building Kubetel
 
 ```bash
