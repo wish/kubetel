@@ -14,11 +14,19 @@ type DeployMessage struct {
 	Retries int
 }
 
+type PodInfo struct {
+	Name string
+	Status string
+	HostIp string
+	PodIp string
+}
+
 //StatusData format of data to send to kubedeploy
 type StatusData struct {
 	Cluster   string
 	Timestamp time.Time
 	Deploy    appsv1.Deployment
+	PodInfoList  []PodInfo
 	Version   string
 }
 

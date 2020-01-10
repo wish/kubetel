@@ -189,12 +189,33 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 				t.clusterName,
 				time.Now().UTC(),
 				*newDeploy,
+				t.podsInfoSnapshot(newDeploy),
 				t.version,
 			},
 		}
 		t.enqueue(t.informerQueues["deployment"], deployMessage)
 	}
+}
 
+func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment) []PodInfo {
+	log.Infof("Snapshot of pod list for: %s", t.kcdapp)
+	set := labels.Set(deployment.Spec.Selector.MatchLabels)
+	pods, err := t.podClient.List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
+
+	if err != nil {
+		log.Warnf("Unable to retrieve pod logs for deployment: " + deployment.Name)
+	}
+
+	var podInfoList []PodInfo
+	for _, pod := range pods.Items {
+		podInfoList = append(podInfoList, PodInfo{
+			Name:   pod.Name,
+			Status: fmt.Sprintf("%s", pod.Status.Phase),
+			HostIp: pod.Status.HostIP,
+			PodIp:  pod.Status.PodIP,
+		})
+	}
+	return podInfoList
 }
 
 func (t *Tracker) trackKcd(oldObj interface{}, newObj interface{}) {
