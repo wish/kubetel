@@ -211,8 +211,8 @@ func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment) []PodInfo {
 		podInfoList = append(podInfoList, PodInfo{
 			Name:   pod.Name,
 			Status: fmt.Sprintf("%s", pod.Status.Phase),
-			HostIp: pod.Status.HostIP,
-			PodIp:  pod.Status.PodIP,
+			HostIP: pod.Status.HostIP,
+			PodIP:  pod.Status.PodIP,
 		})
 	}
 	return podInfoList

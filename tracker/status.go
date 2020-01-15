@@ -14,20 +14,21 @@ type DeployMessage struct {
 	Retries int
 }
 
+//PodInfo holds information about a Pod
 type PodInfo struct {
-	Name string
+	Name   string
 	Status string
-	HostIp string
-	PodIp string
+	HostIP string
+	PodIP  string
 }
 
 //StatusData format of data to send to kubedeploy
 type StatusData struct {
-	Cluster   string
-	Timestamp time.Time
-	Deploy    appsv1.Deployment
-	PodInfoList  []PodInfo
-	Version   string
+	Cluster     string
+	Timestamp   time.Time
+	Deploy      appsv1.Deployment
+	PodInfoList []PodInfo
+	Version     string
 }
 
 //FinishedStatusData format for complete job
