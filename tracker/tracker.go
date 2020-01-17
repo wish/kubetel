@@ -208,11 +208,16 @@ func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment) []PodInfo {
 
 	var podInfoList []PodInfo
 	for _, pod := range pods.Items {
+		var images []string
+		for _, container := range pod.Spec.Containers {
+			images = append(images, container.Image)
+		}
 		podInfoList = append(podInfoList, PodInfo{
-			Name:   pod.Name,
-			Status: fmt.Sprintf("%s", pod.Status.Phase),
-			HostIP: pod.Status.HostIP,
-			PodIP:  pod.Status.PodIP,
+			Name:            pod.Name,
+			Status:          fmt.Sprintf("%s", pod.Status.Phase),
+			HostIP:          pod.Status.HostIP,
+			PodIP:           pod.Status.PodIP,
+			ContainerImages: images,
 		})
 	}
 	return podInfoList

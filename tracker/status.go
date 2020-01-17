@@ -16,10 +16,11 @@ type DeployMessage struct {
 
 //PodInfo holds information about a Pod
 type PodInfo struct {
-	Name   string
-	Status string
-	HostIP string
-	PodIP  string
+	Name            string
+	Status          string
+	HostIP          string
+	PodIP           string
+	ContainerImages []string
 }
 
 //StatusData format of data to send to kubedeploy
