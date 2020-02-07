@@ -287,6 +287,11 @@ func generateTestingDeployment(postfix, namespace, version string) *appsv1.Deplo
 			Namespace: namespace,
 			Labels:    selector,
 		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: selector,
+			},
+		},
 	}
 }
 
