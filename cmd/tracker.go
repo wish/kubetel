@@ -64,6 +64,7 @@ var deployTracker = &cobra.Command{
 			Cluster:              viper.GetString("cluster"),
 			Version:              viper.GetString("tracker.version"),
 			Endpoint:             viper.GetString("tracker.endpoint"),
+			DeploySystemEndpoint: viper.GetString("tracker.deploymentendpoint"),
 			KCDapp:               viper.GetString("tracker.kcdapp"),
 		}
 
@@ -94,6 +95,7 @@ func init() {
 	deployTracker.Flags().String("tracker-version", "", "verson of tracked app")
 	deployTracker.Flags().String("tracker-endpoint", "", "endpoint to push results to")
 	deployTracker.Flags().String("tracker-endpointtype", "", "endpoint type to push results to")
+	deployTracker.Flags().String("tracker-deploymentendpoint", "", "deployment system endpoint type to push results to")
 	deployTracker.Flags().Int("tracker-workercount", 2, "number of worker threads to run")
 	deployTracker.Flags().Int("tracker-maxretries", 2, "number of times to retry pushing to endpoint")
 
@@ -102,6 +104,7 @@ func init() {
 	viper.BindPFlag("tracker.version", deployTracker.Flags().Lookup("tracker-version"))
 	viper.BindPFlag("tracker.endpoint", deployTracker.Flags().Lookup("tracker-endpoint"))
 	viper.BindPFlag("tracker.endpointtype", deployTracker.Flags().Lookup("tracker-endpointtype"))
+	viper.BindPFlag("tracker.deploymentendpoint", deployTracker.Flags().Lookup("tracker-deploymentendpoint"))
 	viper.BindPFlag("tracker.workercount", deployTracker.Flags().Lookup("tracker-workercount"))
 	viper.BindPFlag("tracker.maxretries", deployTracker.Flags().Lookup("tracker-maxretries"))
 

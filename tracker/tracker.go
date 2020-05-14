@@ -63,6 +63,7 @@ type Tracker struct {
 	clusterName             string
 	version                 string
 	deployStatusEndpointAPI string
+	deploySystemEndpointAPI string
 	kcdStates               map[string]string
 
 	namespace            string
@@ -79,6 +80,7 @@ type Config struct {
 	Cluster              string
 	Version              string
 	Endpoint             string
+	DeploySystemEndpoint string
 	KCDapp               string
 }
 
@@ -142,6 +144,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 		clusterName:             c.Cluster,
 		version:                 c.Version,
 		deployStatusEndpointAPI: c.Endpoint,
+		deploySystemEndpointAPI: c.DeploySystemEndpoint,
 		namespace:               c.Namespace,
 		sqsregion:               c.SQSregion,
 		endpointendpointtype:    c.Endpointendpointtype,
@@ -490,6 +493,7 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	//Send to sqs
 	case "sqs":
 		success = t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, data)
+		success = t.sendDeploymentEventSQS(t.deploySystemEndpointAPI, data)
 	default:
 		log.WithFields(log.Fields{"endpoint_type": endtype}).Fatal("Unknown endpoint type")
 		success = true //Prevent Retry for bad message
