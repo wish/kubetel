@@ -63,8 +63,8 @@ var deployTracker = &cobra.Command{
 			Endpointendpointtype: viper.GetString("tracker.endpointtype"),
 			Cluster:              viper.GetString("cluster"),
 			Version:              viper.GetString("tracker.version"),
-			Endpoint:             viper.GetString("tracker.kubedeploy_sqs_endpoint"),
-			DeploySystemEndpoint: viper.GetString("tracker.robbie_sqs_endpoint"),
+			KubeDeployEndpoint:   viper.GetString("tracker.kubedeploy_sqs_endpoint"),
+			RobbieEndpoint:       viper.GetString("tracker.robbie_sqs_endpoint"),
 			KCDapp:               viper.GetString("tracker.kcdapp"),
 		}
 
@@ -102,8 +102,8 @@ func init() {
 	viper.BindPFlag("tracker.namespace", deployTracker.Flags().Lookup("tracker-namespace"))
 	viper.BindPFlag("tracker.kcdapp", deployTracker.Flags().Lookup("tracker-kcdapp"))
 	viper.BindPFlag("tracker.version", deployTracker.Flags().Lookup("tracker-version"))
-	viper.BindPFlag("tracker.kubedeploy_endpoint", deployTracker.Flags().Lookup("tracker-kubedeploy-endpoint"))
-	viper.BindPFlag("tracker.kubedeploy_sqs_endpoint", deployTracker.Flags().Lookup("tracker-endpointtype"))
+	viper.BindPFlag("tracker.kubedeploy_sqs_endpoint", deployTracker.Flags().Lookup("tracker-kubedeploy-endpoint"))
+	viper.BindPFlag("tracker.endpointtype", deployTracker.Flags().Lookup("tracker-endpointtype"))
 	viper.BindPFlag("tracker.robbie_sqs_endpoint", deployTracker.Flags().Lookup("tracker-robbie-endpoint"))
 	viper.BindPFlag("tracker.workercount", deployTracker.Flags().Lookup("tracker-workercount"))
 	viper.BindPFlag("tracker.maxretries", deployTracker.Flags().Lookup("tracker-maxretries"))

@@ -62,8 +62,8 @@ type Tracker struct {
 
 	clusterName             string
 	version                 string
-	deployStatusEndpointAPI string
-	deploySystemEndpointAPI string
+	KubeDeployEndpointAPI   string
+	RobbieEndpointAPI       string
 	kcdStates               map[string]string
 
 	namespace            string
@@ -79,8 +79,8 @@ type Config struct {
 	Endpointendpointtype string
 	Cluster              string
 	Version              string
-	Endpoint             string
-	DeploySystemEndpoint string
+	KubeDeployEndpoint             string
+	RobbieEndpoint string
 	KCDapp               string
 }
 
@@ -110,7 +110,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 
 	switch c.Endpointendpointtype {
 	case "http":
-		if c.Endpoint != "" {
+		if c.KubeDeployEndpoint != "" {
 			httpClient = &http.Client{
 				Timeout: time.Duration(5 * time.Second),
 			}
@@ -143,8 +143,8 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 
 		clusterName:             c.Cluster,
 		version:                 c.Version,
-		deployStatusEndpointAPI: c.Endpoint,
-		deploySystemEndpointAPI: c.DeploySystemEndpoint,
+		KubeDeployEndpointAPI:   c.KubeDeployEndpoint,
+		RobbieEndpointAPI:       c.RobbieEndpoint,
 		namespace:               c.Namespace,
 		sqsregion:               c.SQSregion,
 		endpointendpointtype:    c.Endpointendpointtype,
@@ -481,19 +481,19 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	case "http":
 		switch messageType := data.Type; messageType {
 		case "deployFinished":
-			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.deployStatusEndpointAPI), data)
+			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/finished", t.KubeDeployEndpointAPI), data)
 		case "deployStatus":
-			success = t.sendDeploymentEventHTTP(t.deployStatusEndpointAPI, data)
+			success = t.sendDeploymentEventHTTP(t.KubeDeployEndpointAPI, data)
 		case "deployFailedLogs":
-			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/podlogs", t.deployStatusEndpointAPI), data)
+			success = t.sendDeploymentEventHTTP(fmt.Sprintf("%s/podlogs", t.KubeDeployEndpointAPI), data)
 		default:
 			log.WithFields(log.Fields{"message_type": messageType}).Warn("Unknown message type for http endpoint")
 			success = true //Prevent Retry for bad message
 		}
 	//Send to sqs
 	case "sqs":
-		success = t.sendDeploymentEventSQS(t.deployStatusEndpointAPI, data)
-		success = t.sendDeploymentEventSQS(t.deploySystemEndpointAPI, data)
+		success = t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
+		success = t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
 	default:
 		log.WithFields(log.Fields{"endpoint_type": endtype}).Fatal("Unknown endpoint type")
 		success = true //Prevent Retry for bad message
