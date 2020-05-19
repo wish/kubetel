@@ -79,8 +79,8 @@ type Config struct {
 	Endpointendpointtype string
 	Cluster              string
 	Version              string
-	KubeDeployEndpoint             string
-	RobbieEndpoint string
+	KubeDeployEndpoint   string
+	RobbieEndpoint       string
 	KCDapp               string
 }
 
