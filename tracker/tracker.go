@@ -492,7 +492,9 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 		}
 	//Send to sqs
 	case "sqs":
+		// Send to kube-deploy sqs
 		success = t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
+		// Send to robbie sqs
 		success = t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
 	default:
 		log.WithFields(log.Fields{"endpoint_type": endtype}).Fatal("Unknown endpoint type")
