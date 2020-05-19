@@ -214,9 +214,13 @@ func (c *Controller) processItem(key string) error {
 	}
 
 	//Check if there is a specific endpoint override for the app else use default
-	var endpoint string
-	if endpoint, ok = c.endpointMap[name]; !ok {
-		endpoint = viper.GetString("tracker.endpoint")
+	var kubeDeployEndpoint string
+	var robbieEndpoint string
+	if kubeDeployEndpoint, ok = c.endpointMap[name]; !ok {
+		kubeDeployEndpoint = viper.GetString("tracker.kubedeploy_sqs_endpoint")
+	}
+	if robbieEndpoint, ok = c.endpointMap[name]; !ok {
+		kubeDeployEndpoint = viper.GetString("tracker.robbie_sqs_endpoint")
 	}
 
 	args := []string{"tracker",
@@ -228,7 +232,8 @@ func (c *Controller) processItem(key string) error {
 		fmt.Sprintf("--tracker-version=%s", version),
 		fmt.Sprintf("--tracker-namespace=%s", namespace),
 		fmt.Sprintf("--tracker-endpointtype=%s", viper.GetString("tracker.endpointtype")),
-		fmt.Sprintf("--tracker-endpoint=%s", endpoint),
+		fmt.Sprintf("--tracker-kubedeploy-endpoint=%s", kubeDeployEndpoint),
+		fmt.Sprintf("--tracker-robbie-endpoint=%s", robbieEndpoint),
 		fmt.Sprintf("--tracker-maxretries=%d", viper.GetInt("tracker.maxretries")),
 		fmt.Sprintf("--tracker-workercount=%d", viper.GetInt("tracker.workercount")),
 		fmt.Sprintf("--server-port=%d", viper.GetInt("server.port")),

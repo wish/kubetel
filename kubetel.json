@@ -14,8 +14,8 @@
     "port": 8081
   },
   "tracker": {
-    "endpoint": "https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-dev",
-    "deploymentendpoint": "https://sqs.us-west-1.amazonaws.com/951896542015/deploy-system-k8s-tracker-events-dev",
+    "kubedeploy_sqs_endpoint": "https://sqs.us-west-1.amazonaws.com/951896542015/k8s-tracker-deploy-events-dev",
+    "robbie_sqs_endpoint": "https://sqs.us-west-1.amazonaws.com/951896542015/deploy-system-k8s-tracker-events-dev",
     "endpointtype": "sqs",
     "maxretries": 2,
     "workercount": 2
