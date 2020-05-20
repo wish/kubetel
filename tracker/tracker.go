@@ -493,15 +493,15 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	//Send to sqs
 	case "sqs":
 		// Send to kube-deploy sqs
-		kd_success := t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
+		kdSuccess := t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
 		// Send to robbie sqs
-		robbie_success := t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
-		if !kd_success || !robbie_success {
+		robbieSuccess := t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
+		if !kdSuccess || !robbieSuccess {
 			success = false
-			if !kd_success {
+			if !kdSuccess {
 				log.Infof("Failed to send with to kube-deploy sqs queue: %v", t.KubeDeployEndpointAPI)
 			}
-			if !robbie_success {
+			if !robbieSuccess {
 				log.Infof("Failed to send with to robbie sqs queue: %v", t.RobbieEndpointAPI)
 			}
 		} else {
