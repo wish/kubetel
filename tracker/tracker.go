@@ -493,9 +493,20 @@ func (t *Tracker) processNextItem(data DeployMessage) (success bool) {
 	//Send to sqs
 	case "sqs":
 		// Send to kube-deploy sqs
-		success = t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
+		kd_success := t.sendDeploymentEventSQS(t.KubeDeployEndpointAPI, data)
 		// Send to robbie sqs
-		success = t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
+		robbie_success := t.sendDeploymentEventSQS(t.RobbieEndpointAPI, data)
+		if !kd_success || !robbie_success {
+			success = false
+			if !kd_success {
+				log.Infof("Failed to send with to kube-deploy sqs queue: %v", t.KubeDeployEndpointAPI)
+			}
+			if !robbie_success {
+				log.Infof("Failed to send with to robbie sqs queue: %v", t.RobbieEndpointAPI)
+			}
+		} else {
+			success = true
+		}
 	default:
 		log.WithFields(log.Fields{"endpoint_type": endtype}).Fatal("Unknown endpoint type")
 		success = true //Prevent Retry for bad message
