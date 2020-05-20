@@ -63,7 +63,8 @@ var deployTracker = &cobra.Command{
 			Endpointendpointtype: viper.GetString("tracker.endpointtype"),
 			Cluster:              viper.GetString("cluster"),
 			Version:              viper.GetString("tracker.version"),
-			Endpoint:             viper.GetString("tracker.endpoint"),
+			KubeDeployEndpoint:   viper.GetString("tracker.kubedeploy_sqs_endpoint"),
+			RobbieEndpoint:       viper.GetString("tracker.robbie_sqs_endpoint"),
 			KCDapp:               viper.GetString("tracker.kcdapp"),
 		}
 
@@ -92,16 +93,18 @@ func init() {
 	deployTracker.Flags().String("tracker-namespace", "", "namespace app to track is in")
 	deployTracker.Flags().String("tracker-kcdapp", "", "kcdapp to track")
 	deployTracker.Flags().String("tracker-version", "", "verson of tracked app")
-	deployTracker.Flags().String("tracker-endpoint", "", "endpoint to push results to")
+	deployTracker.Flags().String("tracker-kubedeploy-endpoint", "", "kube-deploy sqs endpoint to push results to")
 	deployTracker.Flags().String("tracker-endpointtype", "", "endpoint type to push results to")
+	deployTracker.Flags().String("tracker-robbie-endpoint", "", "robbie sqs endpoint type to push results to")
 	deployTracker.Flags().Int("tracker-workercount", 2, "number of worker threads to run")
 	deployTracker.Flags().Int("tracker-maxretries", 2, "number of times to retry pushing to endpoint")
 
 	viper.BindPFlag("tracker.namespace", deployTracker.Flags().Lookup("tracker-namespace"))
 	viper.BindPFlag("tracker.kcdapp", deployTracker.Flags().Lookup("tracker-kcdapp"))
 	viper.BindPFlag("tracker.version", deployTracker.Flags().Lookup("tracker-version"))
-	viper.BindPFlag("tracker.endpoint", deployTracker.Flags().Lookup("tracker-endpoint"))
+	viper.BindPFlag("tracker.kubedeploy_sqs_endpoint", deployTracker.Flags().Lookup("tracker-kubedeploy-endpoint"))
 	viper.BindPFlag("tracker.endpointtype", deployTracker.Flags().Lookup("tracker-endpointtype"))
+	viper.BindPFlag("tracker.robbie_sqs_endpoint", deployTracker.Flags().Lookup("tracker-robbie-endpoint"))
 	viper.BindPFlag("tracker.workercount", deployTracker.Flags().Lookup("tracker-workercount"))
 	viper.BindPFlag("tracker.maxretries", deployTracker.Flags().Lookup("tracker-maxretries"))
 

@@ -49,7 +49,7 @@ func TestDeployUpdateHTTP(t *testing.T) {
 		Endpointendpointtype: "http",
 		Cluster:              "cluster-test",
 		Version:              "2222222",
-		Endpoint:             ts.URL,
+		KubeDeployEndpoint:   ts.URL,
 		KCDapp:               kcdapp,
 	}
 
@@ -114,7 +114,7 @@ func TestDeployUpdateHTTPRetry(t *testing.T) {
 		Endpointendpointtype: "http",
 		Cluster:              "cluster-test",
 		Version:              "2222222",
-		Endpoint:             ts.URL,
+		KubeDeployEndpoint:   ts.URL,
 		KCDapp:               kcdapp,
 	}
 
@@ -177,7 +177,7 @@ func TestKCDFinishSuccess(t *testing.T) {
 		Endpointendpointtype: "http",
 		Cluster:              "cluster-test",
 		Version:              "2222222",
-		Endpoint:             ts.URL,
+		KubeDeployEndpoint:   ts.URL,
 		KCDapp:               kcdapp,
 	}
 
@@ -244,7 +244,7 @@ func TestKCDFinishOnStart(t *testing.T) {
 		Endpointendpointtype: "http",
 		Cluster:              "cluster-test",
 		Version:              "1111111",
-		Endpoint:             ts.URL,
+		KubeDeployEndpoint:   ts.URL,
 		KCDapp:               kcdapp,
 	}
 

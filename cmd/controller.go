@@ -31,7 +31,6 @@ var deployController = &cobra.Command{
 	Use:   "controller",
 	Short: "Starts a kubetel controller",
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-
 		var config *rest.Config
 		if k8sConfig != "" {
 			config, err = clientcmd.BuildConfigFromFlags("", k8sConfig)

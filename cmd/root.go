@@ -123,7 +123,6 @@ func initConfig() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-
 			viper.AddConfigPath(".")
 			viper.AddConfigPath(home)
 			viper.SetConfigName("kubetel")
