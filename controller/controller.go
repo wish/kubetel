@@ -215,13 +215,12 @@ func (c *Controller) processItem(key string) error {
 
 	//Check if there is a specific endpoint override for the app else use default
 	var kubeDeployEndpoint string
-	var robbieEndpoint string
 	if kubeDeployEndpoint, ok = c.endpointMap[name]; !ok {
 		kubeDeployEndpoint = viper.GetString("tracker.kubedeploy_sqs_endpoint")
 	}
-	if robbieEndpoint, ok = c.endpointMap[name]; !ok {
-		kubeDeployEndpoint = viper.GetString("tracker.robbie_sqs_endpoint")
-	}
+
+	robbieEndpoint := viper.GetString("tracker.robbie_sqs_endpoint")
+
 
 	args := []string{"tracker",
 		fmt.Sprintf("--cluster=%s", viper.GetString("cluster")),
