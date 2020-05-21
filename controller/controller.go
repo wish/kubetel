@@ -218,7 +218,7 @@ func (c *Controller) processItem(key string) error {
 	if kubeDeployEndpoint, ok = c.endpointMap[name]; !ok {
 		kubeDeployEndpoint = viper.GetString("tracker.kubedeploy_sqs_endpoint")
 	}
-
+	// This is configured based on env, no need to hack
 	robbieEndpoint := viper.GetString("tracker.robbie_sqs_endpoint")
 
 
