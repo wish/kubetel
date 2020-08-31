@@ -86,7 +86,9 @@ type Config struct {
 
 //NewTracker Creates a new tracker
 func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformerFactory, k8sIF k8sinformers.SharedInformerFactory, c Config) (*Tracker, error) {
-
+	if c.KubeDeployEndpoint == "blacklist_projects_dev_kubedeploy" {
+		return nil, nil
+	}
 	//Each informer write to their own queue which are then merged
 	informerQueues := make(map[string]chan DeployMessage)
 
@@ -166,6 +168,7 @@ func NewTracker(k8sClient kubernetes.Interface, customIF informer.SharedInformer
 	})
 	return t, nil
 }
+
 
 //If the given Object is a deploymnet that belongs to the KCD being tracked send deploy message
 func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
