@@ -213,13 +213,15 @@ func (c *Controller) processItem(key string) error {
 		}
 	}
 
+
+
 	//Check if there is a specific endpoint override for the app else use default
 	var kubeDeployEndpoint string
 	if kubeDeployEndpoint, ok = c.endpointMap[name]; !ok {
 		kubeDeployEndpoint = viper.GetString("tracker.kubedeploy_sqs_endpoint")
 	} else {
-		// Reassign sqs endpoint to a check string
-		kubeDeployEndpoint = "blacklist_projects_dev_kubedeploy"
+		log.Infof("Blaclisted project, skipping %s......", name)
+		return nil
 	}
 	// This is configured based on env, no need to hack
 	robbieEndpoint := viper.GetString("tracker.robbie_sqs_endpoint")
