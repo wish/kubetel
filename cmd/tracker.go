@@ -71,9 +71,6 @@ var deployTracker = &cobra.Command{
 		t, err := tracker.NewTracker(k8sClient, kcdcInformerFactory, k8sInformerFactory, c)
 		if err != nil {
 			panic(err.Error())
-		} else if t == nil {
-			log.Infof("Blacklist project for using controller/tracker in kube-deploy, skipping running kubetel tracker: %s", c.Namespace)
-			return
 		}
 		go func() {
 			if err = t.Run(viper.GetInt("tracker.workercount"), stopCh, &waitgroup); err != nil {
