@@ -213,6 +213,15 @@ func (c *Controller) processItem(key string) error {
 		}
 	}
 
+	arr := []string{"kubetel", "kube-deploy", "merchant-backend-spawn"}
+
+	for _, v := range arr {
+		if v == name {
+			log.Infof("Blaclisted project, skipping %s......", v)
+			return
+		}
+	}
+
 	//Check if there is a specific endpoint override for the app else use default
 	var kubeDeployEndpoint string
 	if kubeDeployEndpoint, ok = c.endpointMap[name]; !ok {
