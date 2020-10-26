@@ -183,6 +183,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	if !ok {
 		return
 	}
+	curImage := newDeploy.Spec.Template.Spec.Containers[0].Image
 	if name == t.kcdapp {
 		log.Infof("Deployment updated: %s", name)
 		deployMessage := DeployMessage{
@@ -192,7 +193,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 				t.clusterName,
 				time.Now().UTC(),
 				*newDeploy,
-				t.podsInfoSnapshot(newDeploy),
+				t.podsInfoSnapshot(newDeploy, curImage),
 				t.version,
 			},
 		}
@@ -200,7 +201,7 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 	}
 }
 
-func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment) []PodInfo {
+func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment, curImage string) []PodInfo {
 	log.Infof("Snapshot of pod list for: %s", t.kcdapp)
 	set := labels.Set(deployment.Spec.Selector.MatchLabels)
 	pods, err := t.podClient.List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
@@ -215,9 +216,16 @@ func (t *Tracker) podsInfoSnapshot(deployment *appsv1.Deployment) []PodInfo {
 		for _, container := range pod.Spec.Containers {
 			images = append(images, container.Image)
 		}
+		var PodStatus string
+		if pod.Spec.Containers[0].Image != curImage {
+			PodStatus = "Terminated"
+		} else {
+			PodStatus = fmt.Sprintf("%s", pod.Status.Phase)
+		}
+
 		podInfoList = append(podInfoList, PodInfo{
 			Name:            pod.Name,
-			Status:          fmt.Sprintf("%s", pod.Status.Phase),
+			Status:          PodStatus,
 			HostIP:          pod.Status.HostIP,
 			PodIP:           pod.Status.PodIP,
 			ContainerImages: images,
