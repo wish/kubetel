@@ -326,6 +326,7 @@ func (t *Tracker) deployFinishHandler(kcd *customv1.KCD) {
 				success,
 			},
 		}
+		log.Infof("deployFinished: %s", deployMessage)
 		t.enqueue(t.informerQueues["kcd"], deployMessage)
 	}
 
