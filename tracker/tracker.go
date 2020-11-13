@@ -193,7 +193,6 @@ func (t *Tracker) trackDeployment(oldObj interface{}, newObj interface{}) {
 				t.clusterName,
 				time.Now().UTC(),
 				*newDeploy,
-				t.podsInfoSnapshot(newDeploy, curImage),
 				t.version,
 			},
 		}
