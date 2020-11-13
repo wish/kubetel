@@ -28,6 +28,7 @@ type StatusData struct {
 	Cluster     string
 	Timestamp   time.Time
 	Deploy      appsv1.Deployment
+	PodInfoList []PodInfo
 	Version     string
 }
 
